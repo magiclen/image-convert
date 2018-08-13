@@ -1,11 +1,13 @@
 //! # Image Convert
-//!
+//! A library for image conversion, especially used for web applications.
 
 extern crate magick_rust;
+extern crate ico;
 
 use std::sync::{Once, ONCE_INIT};
 use std::path::Path;
 use std::cmp;
+
 use magick_rust::{MagickWand, magick_wand_genesis, PixelWand, bindings};
 
 static START: Once = ONCE_INIT;
@@ -419,6 +421,132 @@ pub fn to_webp(output: &mut ImageResource, input: &ImageResource, config: &WEBPC
 
 // TODO -----webp END-----
 
+// TODO -----gif START-----
+
+struct ICOConfigInner {
+    width: u16,
+    height: u16,
+    shrink_only: bool,
+    sharpen: f64,
+}
+
+impl ICOConfigInner {
+    pub fn from(config: &ICOConfig) -> Vec<ICOConfigInner> {
+        let mut output = Vec::new();
+
+        for &(width, height) in &config.size {
+            output.push(ICOConfigInner {
+                width,
+                height,
+                shrink_only: config.shrink_only,
+                sharpen: config.sharpen,
+            });
+        }
+
+        output
+    }
+}
+
+pub struct ICOConfig {
+    size: Vec<(u16, u16)>,
+    shrink_only: bool,
+    sharpen: f64,
+}
+
+impl ICOConfig {
+    pub fn new() -> ICOConfig {
+        ICOConfig {
+            size: Vec::new(),
+            shrink_only: false,
+            sharpen: -1f64,
+        }
+    }
+}
+
+impl ImageConfig for ICOConfigInner {
+    fn get_width(&self) -> u16 {
+        self.width
+    }
+
+    fn get_height(&self) -> u16 {
+        self.height
+    }
+
+    fn get_sharpen(&self) -> f64 {
+        self.sharpen
+    }
+
+    fn is_shrink_only(&self) -> bool {
+        self.shrink_only
+    }
+}
+
+pub fn to_ico(output: &mut ImageResource, input: &ImageResource, config: &ICOConfig) -> Result<(), &'static str> {
+    START.call_once(|| {
+        magick_wand_genesis();
+    });
+
+    let mut icon_dir = ico::IconDir::new(ico::ResourceType::Icon);
+
+    for ref config in ICOConfigInner::from(&config) {
+        let mut mw = MagickWand::new();
+
+        match input {
+            ImageResource::Path(p) => {
+                mw.read_image(p)?;
+            }
+            ImageResource::Data(ref b) => {
+                mw.read_image_blob(b)?;
+            }
+        }
+
+        let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
+
+        mw.resize_image(width as usize, height as usize, bindings::FilterType::LanczosFilter);
+
+        mw.profile_image("*", None)?;
+
+        mw.sharpen_image(0f64, sharpen)?;
+
+        mw.set_image_format("RGBA")?;
+
+        let temp = mw.write_image_blob("RGBA")?;
+
+        let icon_image = ico::IconImage::from_rgba_data(width as u32, height as u32, temp);
+
+        icon_dir.add_entry(ico::IconDirEntry::encode(&icon_image).unwrap());
+    }
+
+    match output {
+        ImageResource::Path(ref p) => {
+            let path = Path::new(&p);
+            let file_name_lower_case = path.file_name().unwrap().to_str().unwrap().to_lowercase();
+
+            if !file_name_lower_case.ends_with("ico") {
+                return Err("The file extension name is not ico.");
+            }
+
+            let file = match std::fs::File::create(&path) {
+                Ok(f) => f,
+                Err(_) => return Err("Cannot create the icon file.")
+            };
+
+            if let Err(_) = icon_dir.write(file) {
+                return Err("Cannot write the icon file.");
+            }
+        }
+        ImageResource::Data(ref mut b) => {
+            if let Err(_) = icon_dir.write(b) {
+                return Err("Cannot convert to icon data.");
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// TODO -----ico END-----
+
 fn compute_output_size_sharpen(mw: &MagickWand, config: &ImageConfig) -> (u16, u16, f64) {
     let mut width = config.get_width();
     let mut height = config.get_height();
@@ -556,6 +684,29 @@ mod tests {
         let mut output = ImageResource::Path(target_image_path.to_str().unwrap());
 
         to_webp(&mut output, &input, &config).unwrap();
+    }
+
+    #[test]
+    fn to_ico_file2file() {
+        let cwd = env::current_dir().unwrap();
+
+        let source_image_path = Path::join(&cwd, "tests/data/P1060382.JPG");
+
+        let target_image_path = Path::join(&cwd, "tests/data/P1060382_output.ico");
+
+        let mut config = ICOConfig::new();
+
+        config.size.push((256u16, 256u16));
+        config.size.push((16u16, 16u16));
+        config.size.push((128u16, 128u16));
+        config.size.push((64u16, 64u16));
+        config.size.push((32u16, 32u16));
+
+        let input = ImageResource::Path(source_image_path.to_str().unwrap());
+
+        let mut output = ImageResource::Path(target_image_path.to_str().unwrap());
+
+        to_ico(&mut output, &input, &config).unwrap();
     }
 }
 
