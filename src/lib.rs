@@ -5,7 +5,7 @@ extern crate magick_rust;
 
 use std::sync::{Once, ONCE_INIT};
 use std::path::Path;
-
+use std::cmp;
 use magick_rust::{MagickWand, magick_wand_genesis, PixelWand, bindings};
 
 static START: Once = ONCE_INIT;
@@ -120,7 +120,7 @@ pub fn to_jpg(output: &mut ImageResource, input: &ImageResource, config: &JPGCon
             let path = Path::new(&p);
             let file_name_lower_case = path.file_name().unwrap().to_str().unwrap().to_lowercase();
 
-            if !file_name_lower_case.ends_with("jpg") && !file_name_lower_case.ends_with("jpeg"){
+            if !file_name_lower_case.ends_with("jpg") && !file_name_lower_case.ends_with("jpeg") {
                 return Err("The file extension name is not jpg or jpeg.");
             }
 
@@ -218,7 +218,7 @@ pub fn to_png(output: &mut ImageResource, input: &ImageResource, config: &PNGCon
             let path = Path::new(&p);
             let file_name_lower_case = path.file_name().unwrap().to_str().unwrap().to_lowercase();
 
-            if !file_name_lower_case.ends_with("png"){
+            if !file_name_lower_case.ends_with("png") {
                 return Err("The file extension name is not png.");
             }
 
@@ -309,7 +309,7 @@ pub fn to_gif(output: &mut ImageResource, input: &ImageResource, config: &GIFCon
             let path = Path::new(&p);
             let file_name_lower_case = path.file_name().unwrap().to_str().unwrap().to_lowercase();
 
-            if !file_name_lower_case.ends_with("gif"){
+            if !file_name_lower_case.ends_with("gif") {
                 return Err("The file extension name is not gif.");
             }
 
@@ -402,7 +402,7 @@ pub fn to_webp(output: &mut ImageResource, input: &ImageResource, config: &WEBPC
             let path = Path::new(&p);
             let file_name_lower_case = path.file_name().unwrap().to_str().unwrap().to_lowercase();
 
-            if !file_name_lower_case.ends_with("webp"){
+            if !file_name_lower_case.ends_with("webp") {
                 return Err("The file extension name is not webp.");
             }
 
@@ -448,7 +448,7 @@ fn compute_output_size_sharpen(mw: &MagickWand, config: &ImageConfig) -> (u16, u
     if wr >= hr {
         height = (width as f64 / ratio) as u16;
     } else {
-        width = (height as f64 / ratio) as u16;
+        width = (height as f64 * ratio) as u16;
     }
 
     let mut adjusted_sharpen = config.get_sharpen();
@@ -456,21 +456,17 @@ fn compute_output_size_sharpen(mw: &MagickWand, config: &ImageConfig) -> (u16, u
     if adjusted_sharpen < 0f64 {
         let origin_pixels = original_width as u32 * original_height as u32;
         let resize_pixels = width as u32 * height as u32;
-        let pixel_ratio;
-        let resize_level = (resize_pixels as f64 / 8294400f64).sqrt();
-        if origin_pixels == resize_pixels {
-            pixel_ratio = 1f64;
-        } else if origin_pixels > resize_pixels {
-            pixel_ratio = origin_pixels as f64 / resize_pixels as f64;
-        } else {
-            pixel_ratio = resize_pixels as f64 / origin_pixels as f64;
-        }
-        adjusted_sharpen = resize_level + 0.1f64 * (pixel_ratio / 10f64);
+        let resize_level = (resize_pixels as f64 / 5000000f64).sqrt();
 
-        if adjusted_sharpen > 3f64 {
-            adjusted_sharpen = 3f64;
-        } else if adjusted_sharpen < 0.1f64 {
+        let m = cmp::max(origin_pixels, resize_pixels) as f64;
+        let n = cmp::min(origin_pixels, resize_pixels) as f64;
+
+        adjusted_sharpen = resize_level * ((m - n) / m);
+
+        if adjusted_sharpen < 0.1f64 {
             adjusted_sharpen = 0.1f64;
+        } else if adjusted_sharpen > 3f64 {
+            adjusted_sharpen = 3f64;
         }
     }
 
