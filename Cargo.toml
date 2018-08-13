@@ -1,0 +1,17 @@
+[package]
+name = "image-convert"
+version = "0.1.0"
+authors = ["Magic Len <len@magiclen.org>"]
+repository = "https://github.com/magiclen/image-convert"
+homepage = "https://magiclen.org/image-convert"
+keywords = ["image", "jpg", "png", "gif", "webp"]
+categories = ["Multimedia::Images", "Multimedia::Encoding"]
+description= "A library for image conversion, especially used for web applications."
+readme = "README.md"
+license = "MIT"
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+magick_rust = { git = "https://github.com/nlfiedler/magick-rust", branch = "master" }
