@@ -438,7 +438,7 @@ impl ICOConfigInner {
             output.push(ICOConfigInner {
                 width,
                 height,
-                shrink_only: config.shrink_only,
+                shrink_only: false,
                 sharpen: config.sharpen,
             });
         }
@@ -449,7 +449,6 @@ impl ICOConfigInner {
 
 pub struct ICOConfig {
     size: Vec<(u16, u16)>,
-    shrink_only: bool,
     sharpen: f64,
 }
 
@@ -457,7 +456,6 @@ impl ICOConfig {
     pub fn new() -> ICOConfig {
         ICOConfig {
             size: Vec::new(),
-            shrink_only: false,
             sharpen: -1f64,
         }
     }
