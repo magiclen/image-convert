@@ -512,7 +512,7 @@ pub fn to_ico(output: &mut ImageResource, input: &ImageResource, config: &ICOCon
 
         let icon_image = ico::IconImage::from_rgba_data(width as u32, height as u32, temp);
 
-        icon_dir.add_entry(ico::IconDirEntry::encode(&icon_image).unwrap());
+        icon_dir.add_entry(ico::IconDirEntry::encode_as_bmp(&icon_image).unwrap());
     }
 
     match output {
