@@ -27,14 +27,14 @@ pub enum ImageResource<'a> {
 // TODO -----jpg START-----
 
 pub struct JPGConfig {
-    width: u16,
-    height: u16,
-    shrink_only: bool,
-    sharpen: f64,
-    force_to_chroma_quartered: bool,
-    quality: u8,
-    background_color: String,
-    ppi: f64,
+    pub width: u16,
+    pub height: u16,
+    pub shrink_only: bool,
+    pub sharpen: f64,
+    pub force_to_chroma_quartered: bool,
+    pub quality: u8,
+    pub background_color: String,
+    pub ppi: f64,
 }
 
 impl JPGConfig {
@@ -142,11 +142,11 @@ pub fn to_jpg(output: &mut ImageResource, input: &ImageResource, config: &JPGCon
 // TODO -----png START-----
 
 pub struct PNGConfig {
-    width: u16,
-    height: u16,
-    shrink_only: bool,
-    sharpen: f64,
-    ppi: f64,
+    pub width: u16,
+    pub height: u16,
+    pub shrink_only: bool,
+    pub sharpen: f64,
+    pub ppi: f64,
 }
 
 impl PNGConfig {
@@ -240,10 +240,10 @@ pub fn to_png(output: &mut ImageResource, input: &ImageResource, config: &PNGCon
 // TODO -----gif START-----
 
 pub struct GIFConfig {
-    width: u16,
-    height: u16,
-    shrink_only: bool,
-    sharpen: f64,
+    pub width: u16,
+    pub height: u16,
+    pub shrink_only: bool,
+    pub sharpen: f64,
 }
 
 impl GIFConfig {
@@ -331,11 +331,11 @@ pub fn to_gif(output: &mut ImageResource, input: &ImageResource, config: &GIFCon
 // TODO -----webp START-----
 
 pub struct WEBPConfig {
-    width: u16,
-    height: u16,
-    shrink_only: bool,
-    sharpen: f64,
-    quality: u8,
+    pub width: u16,
+    pub height: u16,
+    pub shrink_only: bool,
+    pub sharpen: f64,
+    pub quality: u8,
 }
 
 impl WEBPConfig {
@@ -448,8 +448,8 @@ impl ICOConfigInner {
 }
 
 pub struct ICOConfig {
-    size: Vec<(u16, u16)>,
-    sharpen: f64,
+    pub size: Vec<(u16, u16)>,
+    pub sharpen: f64,
 }
 
 impl ICOConfig {
