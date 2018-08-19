@@ -33,7 +33,7 @@ pub struct Resolution {
 }
 
 pub struct ImageIdentify {
-    resolution: Resolution
+    pub resolution: Resolution
 }
 
 pub fn identify(output: &mut Option<Vec<MagickWand>>, input: &ImageResource) -> Result<ImageIdentify, &'static str> {
