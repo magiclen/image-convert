@@ -24,6 +24,57 @@ pub enum ImageResource<'a> {
     Data(Vec<u8>),
 }
 
+// TODO -----identify START-----
+
+pub struct Resolution {
+    pub width: u32,
+    pub height: u32,
+    pub format: String,
+}
+
+pub struct ImageIdentify {
+    resolution: Resolution
+}
+
+pub fn identify(output: &mut Option<Vec<MagickWand>>, input: &ImageResource) -> Result<ImageIdentify, &'static str> {
+    START.call_once(|| {
+        magick_wand_genesis();
+    });
+
+    let mut mw = MagickWand::new();
+
+    match input {
+        ImageResource::Path(p) => {
+            mw.read_image(p)?;
+        }
+        ImageResource::Data(ref b) => {
+            mw.read_image_blob(b)?;
+        }
+    }
+
+    let width = mw.get_image_width() as u32;
+
+    let height = mw.get_image_height() as u32;
+
+    let format = mw.get_image_format()?;
+
+    let resolution = Resolution {
+        width,
+        height,
+        format,
+    };
+
+    if let Some(s) = output {
+        s.push(mw);
+    }
+
+    Ok(ImageIdentify {
+        resolution
+    })
+}
+
+// TODO -----identify END-----
+
 // TODO -----jpg START-----
 
 pub struct JPGConfig {
@@ -607,6 +658,22 @@ mod tests {
 
     use std::env;
     use std::path::Path;
+
+    #[test]
+    fn get_identify() {
+        let cwd = env::current_dir().unwrap();
+
+        let source_image_path = Path::join(&cwd, "tests/data/P1060382.JPG");
+
+        let input = ImageResource::Path(source_image_path.to_str().unwrap());
+
+        let mut output = None;
+
+        let id = identify(&mut output, &input).unwrap();
+
+        assert_eq!(4592, id.resolution.width);
+        assert_eq!(2584, id.resolution.height);
+    }
 
     #[test]
     fn to_jpg_file2file() {
