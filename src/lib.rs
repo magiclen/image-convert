@@ -29,11 +29,11 @@ pub enum ImageResource<'a> {
 pub struct Resolution {
     pub width: u32,
     pub height: u32,
-    pub format: String,
 }
 
 pub struct ImageIdentify {
-    pub resolution: Resolution
+    pub resolution: Resolution,
+    pub format: String,
 }
 
 pub fn identify(output: &mut Option<Vec<MagickWand>>, input: &ImageResource) -> Result<ImageIdentify, &'static str> {
@@ -61,7 +61,6 @@ pub fn identify(output: &mut Option<Vec<MagickWand>>, input: &ImageResource) -> 
     let resolution = Resolution {
         width,
         height,
-        format,
     };
 
     if let Some(s) = output {
@@ -69,7 +68,8 @@ pub fn identify(output: &mut Option<Vec<MagickWand>>, input: &ImageResource) -> 
     }
 
     Ok(ImageIdentify {
-        resolution
+        resolution,
+        format,
     })
 }
 
