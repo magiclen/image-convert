@@ -41,7 +41,7 @@ pub fn identify(output: &mut Option<Vec<MagickWand>>, input: &ImageResource) -> 
         magick_wand_genesis();
     });
 
-    let mut mw = MagickWand::new();
+    let mw = MagickWand::new();
 
     match input {
         ImageResource::Path(p) => {
@@ -673,6 +673,7 @@ mod tests {
 
         assert_eq!(4592, id.resolution.width);
         assert_eq!(2584, id.resolution.height);
+        assert_eq!("JPEG", id.format);
     }
 
     #[test]
