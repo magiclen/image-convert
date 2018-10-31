@@ -1,6 +1,6 @@
 [package]
 name = "image-convert"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Magic Len <len@magiclen.org>"]
 repository = "https://github.com/magiclen/image-convert"
 homepage = "https://magiclen.org/image-convert"
@@ -11,5 +11,5 @@ readme = "README.md"
 license = "MIT"
 
 [dependencies]
-magick_rust = { git = "https://github.com/nlfiedler/magick-rust", branch = "master" }
+magick_rust = { git = "https://github.com/magiclen/magick-rust", branch = "master" }
 ico = "0.1.0"
