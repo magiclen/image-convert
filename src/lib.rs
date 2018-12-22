@@ -10,6 +10,8 @@ use std::cmp;
 
 use magick_rust::{MagickWand, magick_wand_genesis, PixelWand, bindings};
 
+pub use magick_rust::bindings::InterlaceType;
+
 static START: Once = ONCE_INIT;
 
 trait ImageConfig {
@@ -34,7 +36,7 @@ pub struct Resolution {
 pub struct ImageIdentify {
     pub resolution: Resolution,
     pub format: String,
-    pub interlace: bindings::InterlaceType,
+    pub interlace: InterlaceType,
 }
 
 pub fn identify(output: &mut Option<Vec<MagickWand>>, input: &ImageResource) -> Result<ImageIdentify, &'static str> {
@@ -172,7 +174,7 @@ pub fn to_jpg(output: &mut ImageResource, input: &ImageResource, config: &JPGCon
 
     mw.set_image_compression_quality(config.quality as usize)?;
 
-    mw.set_image_interlace_scheme(bindings::InterlaceType::LineInterlace)?;
+    mw.set_image_interlace_scheme(InterlaceType::LineInterlace)?;
 
     mw.sharpen_image(0f64, sharpen)?;
 
@@ -270,7 +272,7 @@ pub fn to_png(output: &mut ImageResource, input: &ImageResource, config: &PNGCon
 
     mw.set_image_compression_quality(100)?;
 
-    mw.set_image_interlace_scheme(bindings::InterlaceType::LineInterlace)?;
+    mw.set_image_interlace_scheme(InterlaceType::LineInterlace)?;
 
     mw.sharpen_image(0f64, sharpen)?;
 
@@ -366,7 +368,7 @@ pub fn to_gif(output: &mut ImageResource, input: &ImageResource, config: &GIFCon
 
     mw.set_image_compression_quality(100)?;
 
-    mw.set_image_interlace_scheme(bindings::InterlaceType::LineInterlace)?;
+    mw.set_image_interlace_scheme(InterlaceType::LineInterlace)?;
 
     mw.sharpen_image(0f64, sharpen)?;
 
@@ -459,7 +461,7 @@ pub fn to_webp(output: &mut ImageResource, input: &ImageResource, config: &WEBPC
 
     mw.set_image_compression_quality(config.quality as usize)?;
 
-    mw.set_image_interlace_scheme(bindings::InterlaceType::LineInterlace)?;
+    mw.set_image_interlace_scheme(InterlaceType::LineInterlace)?;
 
     mw.sharpen_image(0f64, sharpen)?;
 
@@ -677,7 +679,7 @@ pub fn to_gray_raw(output: &mut ImageResource, input: &ImageResource, config: &G
 
     mw.profile_image("*", None)?;
 
-    mw.set_image_interlace_scheme(bindings::InterlaceType::NoInterlace)?;
+    mw.set_image_interlace_scheme(InterlaceType::NoInterlace)?;
 
     mw.set_image_depth(8)?;
 
@@ -785,7 +787,7 @@ mod tests {
         assert_eq!(4592, id.resolution.width);
         assert_eq!(2584, id.resolution.height);
         assert_eq!("JPEG", id.format);
-        assert_eq!(bindings::InterlaceType::NoInterlace, id.interlace);
+        assert_eq!(InterlaceType::NoInterlace, id.interlace);
     }
 
     #[test]
