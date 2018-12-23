@@ -272,7 +272,7 @@ pub fn to_png(output: &mut ImageResource, input: &ImageResource, config: &PNGCon
 
     mw.set_image_compression_quality(100)?;
 
-    mw.set_image_interlace_scheme(InterlaceType::LineInterlace)?;
+    mw.set_interlace_scheme(InterlaceType::LineInterlace)?;
 
     mw.sharpen_image(0f64, sharpen)?;
 
@@ -368,7 +368,7 @@ pub fn to_gif(output: &mut ImageResource, input: &ImageResource, config: &GIFCon
 
     mw.set_image_compression_quality(100)?;
 
-    mw.set_image_interlace_scheme(InterlaceType::LineInterlace)?;
+    mw.set_interlace_scheme(InterlaceType::LineInterlace)?;
 
     mw.sharpen_image(0f64, sharpen)?;
 
@@ -461,7 +461,7 @@ pub fn to_webp(output: &mut ImageResource, input: &ImageResource, config: &WEBPC
 
     mw.set_image_compression_quality(config.quality as usize)?;
 
-    mw.set_image_interlace_scheme(InterlaceType::LineInterlace)?;
+    mw.set_interlace_scheme(InterlaceType::LineInterlace)?;
 
     mw.sharpen_image(0f64, sharpen)?;
 
@@ -679,7 +679,7 @@ pub fn to_gray_raw(output: &mut ImageResource, input: &ImageResource, config: &G
 
     mw.profile_image("*", None)?;
 
-    mw.set_image_interlace_scheme(InterlaceType::NoInterlace)?;
+    mw.set_interlace_scheme(InterlaceType::NoInterlace)?;
 
     mw.set_image_depth(8)?;
 
