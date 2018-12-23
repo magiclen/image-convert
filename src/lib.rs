@@ -70,7 +70,7 @@ pub fn identify(output: &mut Option<Vec<MagickWand>>, input: &ImageResource) -> 
 
     let height = mw.get_image_height() as u32;
 
-    let interlace = mw.get_interlace_scheme();
+    let interlace = mw.get_image_interlace_scheme();
 
     let format = mw.get_image_format()?;
 
