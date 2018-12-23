@@ -174,7 +174,7 @@ pub fn to_jpg(output: &mut ImageResource, input: &ImageResource, config: &JPGCon
 
     mw.set_image_compression_quality(config.quality as usize)?;
 
-    mw.set_image_interlace_scheme(InterlaceType::LineInterlace)?;
+    mw.set_interlace_scheme(InterlaceType::LineInterlace)?;
 
     mw.sharpen_image(0f64, sharpen)?;
 
