@@ -1,6 +1,4 @@
-use std::path::Path;
-
-use crate::{START_CALL_ONCE, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, magick_rust::{MagickWand, bindings}};
+use crate::{START_CALL_ONCE, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, magick_rust::{MagickWand, bindings}, starts_ends_with_caseless::EndsWithCaseless};
 
 /// The output config of a PNG image.
 pub struct PNGConfig {
@@ -92,10 +90,7 @@ pub fn to_png(output: &mut ImageResource, input: &ImageResource, config: &PNGCon
 
     match output {
         ImageResource::Path(p) => {
-            let path = Path::new(&p);
-            let file_name_lower_case = path.file_name().unwrap().to_str().unwrap().to_lowercase();
-
-            if !file_name_lower_case.ends_with("png") {
+            if !p.ends_with_caseless_ascii(".png") {
                 return Err("The file extension name is not png.");
             }
 

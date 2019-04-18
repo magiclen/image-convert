@@ -55,6 +55,7 @@ pub extern crate magick_rust;
 #[macro_use]
 extern crate enum_ordinalize;
 extern crate ico;
+extern crate starts_ends_with_caseless;
 
 mod color_name;
 mod interlace_type;

@@ -1,6 +1,4 @@
-use std::path::Path;
-
-use crate::{START_CALL_ONCE, ColorName, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, magick_rust::{MagickWand, PixelWand, bindings}};
+use crate::{START_CALL_ONCE, ColorName, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, magick_rust::{MagickWand, PixelWand, bindings}, starts_ends_with_caseless::EndsWithCaseless};
 
 /// The output config of a RAW image with gray colors.
 pub struct GrayRawConfig {
@@ -86,10 +84,7 @@ pub fn to_gray_raw(output: &mut ImageResource, input: &ImageResource, config: &G
 
     match output {
         ImageResource::Path(p) => {
-            let path = Path::new(&p);
-            let file_name_lower_case = path.file_name().unwrap().to_str().unwrap().to_lowercase();
-
-            if !file_name_lower_case.ends_with("raw") {
+            if !p.ends_with_caseless_ascii(".raw") {
                 return Err("The file extension name is not raw.");
             }
 

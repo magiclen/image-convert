@@ -1,6 +1,4 @@
-use std::path::Path;
-
-use crate::{START_CALL_ONCE, ImageResource, ImageConfig, compute_output_size_sharpen, magick_rust::{MagickWand, bindings}};
+use crate::{START_CALL_ONCE, ImageResource, ImageConfig, compute_output_size_sharpen, magick_rust::{MagickWand, bindings}, starts_ends_with_caseless::EndsWithCaseless};
 
 struct ICOConfigInner {
     width: u16,
@@ -105,14 +103,11 @@ pub fn to_ico(output: &mut ImageResource, input: &ImageResource, config: &ICOCon
 
     match output {
         ImageResource::Path(ref p) => {
-            let path = Path::new(&p);
-            let file_name_lower_case = path.file_name().unwrap().to_str().unwrap().to_lowercase();
-
-            if !file_name_lower_case.ends_with("ico") {
+            if !p.ends_with_caseless_ascii(".ico") {
                 return Err("The file extension name is not ico.");
             }
 
-            let file = match std::fs::File::create(&path) {
+            let file = match std::fs::File::create(&p) {
                 Ok(f) => f,
                 Err(_) => return Err("Cannot create the icon file.")
             };

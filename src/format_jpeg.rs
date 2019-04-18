@@ -1,6 +1,4 @@
-use std::path::Path;
-
-use crate::{START_CALL_ONCE, ColorName, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, magick_rust::{MagickWand, PixelWand, bindings}};
+use crate::{START_CALL_ONCE, ColorName, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, magick_rust::{MagickWand, PixelWand, bindings}, starts_ends_with_caseless::EndsWithCaselessMultiple};
 
 /// The output config of a JPEG image.
 pub struct JPGConfig {
@@ -115,10 +113,7 @@ pub fn to_jpg(output: &mut ImageResource, input: &ImageResource, config: &JPGCon
 
     match output {
         ImageResource::Path(ref p) => {
-            let path = Path::new(&p);
-            let file_name_lower_case = path.file_name().unwrap().to_str().unwrap().to_lowercase();
-
-            if !file_name_lower_case.ends_with("jpg") && !file_name_lower_case.ends_with("jpeg") {
+            if !p.ends_with_caseless_ascii_multiple(&[".jpg", ".jpeg"]) {
                 return Err("The file extension name is not jpg or jpeg.");
             }
 

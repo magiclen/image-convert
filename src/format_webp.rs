@@ -1,6 +1,4 @@
-use std::path::Path;
-
-use crate::{START_CALL_ONCE, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, magick_rust::{MagickWand, bindings}};
+use crate::{START_CALL_ONCE, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, magick_rust::{MagickWand, bindings}, starts_ends_with_caseless::EndsWithCaseless};
 
 /// The output config of a WEBP image.
 pub struct WEBPConfig {
@@ -77,10 +75,7 @@ pub fn to_webp(output: &mut ImageResource, input: &ImageResource, config: &WEBPC
 
     match output {
         ImageResource::Path(p) => {
-            let path = Path::new(&p);
-            let file_name_lower_case = path.file_name().unwrap().to_str().unwrap().to_lowercase();
-
-            if !file_name_lower_case.ends_with("webp") {
+            if !p.ends_with_caseless_ascii(".webp") {
                 return Err("The file extension name is not webp.");
             }
 
