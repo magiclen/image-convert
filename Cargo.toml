@@ -1,11 +1,11 @@
 [package]
 name = "image-convert"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Magic Len <len@magiclen.org>"]
 repository = "https://github.com/magiclen/image-convert"
 homepage = "https://magiclen.org/image-convert"
 keywords = ["image", "interlacing", "resize", "imagemagick", "conversion"]
-categories = ["Multimedia::Images", "Multimedia::Encoding"]
+categories = ["multimedia::images", "multimedia::encoding"]
 description= "A high level library for image identification, conversion, interlacing and high quality resizing."
 readme = "README.md"
 license = "MIT"
