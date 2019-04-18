@@ -6,7 +6,7 @@ Image Convert
 
 This crate is a high level library using **MagickWand** (ImageMagick) for image identification, conversion, interlacing and high quality resizing.
 
-## Example
+## Examples
 
 Identify an image.
 
