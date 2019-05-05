@@ -16,12 +16,12 @@ pub struct ImageIdentify {
 }
 
 /// Identify an image. It can also be used for read an image as `MagickWand` instances.
-pub fn identify(output: &mut Option<Vec<MagickWand>>, input: &ImageResource) -> Result<ImageIdentify, &'static str> {
+pub fn identify(output: &mut Option<Option<MagickWand>>, input: &ImageResource) -> Result<ImageIdentify, &'static str> {
     START_CALL_ONCE();
 
     let mw = MagickWand::new();
 
-    if let None = output {
+    if let None = output.as_ref() {
         match input {
             ImageResource::Path(p) => {
                 mw.ping_image(p.as_str())?;
@@ -55,7 +55,7 @@ pub fn identify(output: &mut Option<Vec<MagickWand>>, input: &ImageResource) -> 
     };
 
     if let Some(s) = output {
-        s.push(mw);
+        s.replace(mw);
     }
 
     Ok(ImageIdentify {
