@@ -2,7 +2,7 @@ extern crate image_convert;
 
 use std::path::Path;
 
-use image_convert::{ImageResource, InterlaceType, JPGConfig, GIFConfig, PNGConfig, WEBPConfig, ICOConfig, GrayRawConfig, identify, to_jpg, to_gif, to_png, to_webp, to_ico, to_gray_raw};
+use image_convert::{ImageResource, InterlaceType, JPGConfig, GIFConfig, PNGConfig, WEBPConfig, ICOConfig, GrayRawConfig, PGMConfig, identify, to_jpg, to_gif, to_png, to_webp, to_ico, to_gray_raw, to_pgm};
 
 #[cfg(windows)]
 const INPUT_IMAGE_PATH: &'static str = r"tests\data\P1060382.JPG";
@@ -128,4 +128,21 @@ fn to_gray_file2file() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_gray_raw(&mut output, &input, &config).unwrap();
+}
+
+#[test]
+fn to_pgm_file2file() {
+    let source_image_path = Path::new(INPUT_IMAGE_PATH);
+
+    let target_image_path = Path::join(source_image_path.parent().unwrap(), "P1060382_output.pgm");
+
+    let mut config = PGMConfig::new();
+
+    config.width = 1920;
+
+    let input = ImageResource::from_path(source_image_path);
+
+    let mut output = ImageResource::from_path(target_image_path);
+
+    to_pgm(&mut output, &input, &config).unwrap();
 }

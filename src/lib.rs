@@ -68,6 +68,7 @@ mod format_gif;
 mod format_webp;
 mod format_ico;
 mod format_gray_raw;
+mod format_pgm;
 
 use std::sync::{Once, ONCE_INIT};
 
@@ -82,6 +83,7 @@ pub use self::format_gif::*;
 pub use self::format_webp::*;
 pub use self::format_ico::*;
 pub use self::format_gray_raw::*;
+pub use self::format_pgm::*;
 
 use magick_rust::magick_wand_genesis;
 
