@@ -64,8 +64,11 @@ pub fn to_pgm(output: &mut ImageResource, input: &ImageResource, config: &PGMCon
         ImageResource::Path(p) => {
             mw.read_image(p.as_str())?;
         }
-        ImageResource::Data(ref b) => {
+        ImageResource::Data(b) => {
             mw.read_image_blob(b)?;
+        }
+        ImageResource::MagickWand(mw_2) => {
+            mw = mw_2.clone();
         }
     }
 
@@ -87,16 +90,19 @@ pub fn to_pgm(output: &mut ImageResource, input: &ImageResource, config: &PGMCon
     mw.set_image_format("PGM")?;
 
     match output {
-        ImageResource::Path(ref p) => {
+        ImageResource::Path(p) => {
             if !p.ends_with_caseless_ascii("pgm") {
                 return Err("The file extension name is not pgm.");
             }
 
             mw.write_image(p.as_str())?;
         }
-        ImageResource::Data(ref mut b) => {
+        ImageResource::Data(b) => {
             let mut temp = mw.write_image_blob("PGM")?;
             b.append(&mut temp);
+        }
+        ImageResource::MagickWand(mw_2) => {
+            *mw_2 = mw;
         }
     }
 

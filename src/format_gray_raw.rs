@@ -56,8 +56,11 @@ pub fn to_gray_raw(output: &mut ImageResource, input: &ImageResource, config: &G
         ImageResource::Path(p) => {
             mw.read_image(p.as_str())?;
         }
-        ImageResource::Data(ref b) => {
+        ImageResource::Data(b) => {
             mw.read_image_blob(b)?;
+        }
+        ImageResource::MagickWand(mw_2) => {
+            mw = mw_2.clone();
         }
     }
 
@@ -90,9 +93,12 @@ pub fn to_gray_raw(output: &mut ImageResource, input: &ImageResource, config: &G
 
             mw.write_image(p.as_str())?;
         }
-        ImageResource::Data(ref mut b) => {
+        ImageResource::Data(b) => {
             let mut temp = mw.write_image_blob("GRAY")?;
             b.append(&mut temp);
+        }
+        ImageResource::MagickWand(mw_2) => {
+            *mw_2 = mw;
         }
     }
 

@@ -15,32 +15,7 @@ pub struct ImageIdentify {
     pub interlace: InterlaceType,
 }
 
-/// Identify an image. It can also be used for read an image as `MagickWand` instances.
-pub fn identify(output: &mut Option<Option<MagickWand>>, input: &ImageResource) -> Result<ImageIdentify, &'static str> {
-    START_CALL_ONCE();
-
-    let mw = MagickWand::new();
-
-    if let None = output.as_ref() {
-        match input {
-            ImageResource::Path(p) => {
-                mw.ping_image(p.as_str())?;
-            }
-            ImageResource::Data(ref b) => {
-                mw.ping_image_blob(b)?;
-            }
-        }
-    } else {
-        match input {
-            ImageResource::Path(p) => {
-                mw.read_image(p.as_str())?;
-            }
-            ImageResource::Data(ref b) => {
-                mw.read_image_blob(b)?;
-            }
-        }
-    }
-
+fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, &'static str> {
     let width = mw.get_image_width() as u32;
 
     let height = mw.get_image_height() as u32;
@@ -54,13 +29,60 @@ pub fn identify(output: &mut Option<Option<MagickWand>>, input: &ImageResource) 
         height,
     };
 
-    if let Some(s) = output {
-        s.replace(mw);
-    }
-
     Ok(ImageIdentify {
         resolution,
         format,
         interlace: InterlaceType::from_ordinal(interlace as isize).unwrap_or(InterlaceType::UndefinedInterlace),
     })
+}
+
+/// Identify an image. It can also be used for read an image as `MagickWand` instances.
+pub fn identify(output: &mut Option<Option<MagickWand>>, input: &ImageResource) -> Result<ImageIdentify, &'static str> {
+    START_CALL_ONCE();
+
+    match input {
+        ImageResource::Path(p) => {
+            let mw = MagickWand::new();
+
+            if output.is_some() {
+                mw.read_image(p.as_str())?;
+            } else {
+                mw.ping_image(p.as_str())?;
+            }
+
+            let identify = identify_inner(&mw)?;
+
+            if let Some(s) = output {
+                s.replace(mw);
+            }
+
+            Ok(identify)
+        }
+        ImageResource::Data(b) => {
+            let mw = MagickWand::new();
+
+            if output.is_some() {
+                mw.read_image_blob(b)?;
+            } else {
+                mw.ping_image_blob(b)?;
+            }
+
+            let identify = identify_inner(&mw)?;
+
+            if let Some(s) = output {
+                s.replace(mw);
+            }
+
+            Ok(identify)
+        }
+        ImageResource::MagickWand(mw) => {
+            let identify = identify_inner(mw)?;
+
+            if let Some(s) = output {
+                s.replace(mw.clone());
+            }
+
+            Ok(identify)
+        }
+    }
 }

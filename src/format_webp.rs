@@ -54,8 +54,11 @@ pub fn to_webp(output: &mut ImageResource, input: &ImageResource, config: &WEBPC
         ImageResource::Path(p) => {
             mw.read_image(p.as_str())?;
         }
-        ImageResource::Data(ref b) => {
+        ImageResource::Data(b) => {
             mw.read_image_blob(b)?;
+        }
+        ImageResource::MagickWand(mw_2) => {
+            mw = mw_2.clone();
         }
     }
 
@@ -81,9 +84,12 @@ pub fn to_webp(output: &mut ImageResource, input: &ImageResource, config: &WEBPC
 
             mw.write_image(p.as_str())?;
         }
-        ImageResource::Data(ref mut b) => {
+        ImageResource::Data(b) => {
             let mut temp = mw.write_image_blob("WEBP")?;
             b.append(&mut temp);
+        }
+        ImageResource::MagickWand(mw_2) => {
+            *mw_2 = mw;
         }
     }
 

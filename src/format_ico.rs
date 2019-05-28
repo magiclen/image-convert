@@ -72,15 +72,18 @@ pub fn to_ico(output: &mut ImageResource, input: &ImageResource, config: &ICOCon
 
     let mut icon_dir = ico::IconDir::new(ico::ResourceType::Icon);
 
-    for ref config in ICOConfigInner::from(&config) {
+    for config in ICOConfigInner::from(&config).iter() {
         let mut mw = MagickWand::new();
 
         match input {
             ImageResource::Path(p) => {
                 mw.read_image(p.as_str())?;
             }
-            ImageResource::Data(ref b) => {
+            ImageResource::Data(b) => {
                 mw.read_image_blob(b)?;
+            }
+            ImageResource::MagickWand(mw_2) => {
+                mw = mw_2.clone();
             }
         }
 
@@ -102,7 +105,7 @@ pub fn to_ico(output: &mut ImageResource, input: &ImageResource, config: &ICOCon
     }
 
     match output {
-        ImageResource::Path(ref p) => {
+        ImageResource::Path(p) => {
             if !p.ends_with_caseless_ascii(".ico") {
                 return Err("The file extension name is not ico.");
             }
@@ -116,10 +119,13 @@ pub fn to_ico(output: &mut ImageResource, input: &ImageResource, config: &ICOCon
                 return Err("Cannot write the icon file.");
             }
         }
-        ImageResource::Data(ref mut b) => {
+        ImageResource::Data(b) => {
             if let Err(_) = icon_dir.write(b) {
                 return Err("Cannot convert to icon data.");
             }
+        }
+        ImageResource::MagickWand(_) => {
+            return Err("ICO cannot be output to a MagickWand instance.");
         }
     }
 

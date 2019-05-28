@@ -1,11 +1,14 @@
 use std::path::{Path, PathBuf};
 use std::io::{self, Read};
 
+use crate::magick_rust::MagickWand;
+
 /// The resource of an image. It can be an input resource or an output resource.
 #[derive(Debug)]
 pub enum ImageResource {
     Path(String),
     Data(Vec<u8>),
+    MagickWand(MagickWand),
 }
 
 impl ImageResource {
@@ -56,6 +59,15 @@ impl ImageResource {
             None
         }
     }
+
+    /// Convert this `ImageResource` instance into a `MagickWand` (if it is possible).
+    pub fn into_magick_wand(self) -> Option<MagickWand> {
+        if let ImageResource::MagickWand(mw) = self {
+            Some(mw)
+        } else {
+            None
+        }
+    }
 }
 
 impl ImageResource {
@@ -81,6 +93,15 @@ impl ImageResource {
     pub fn as_u8_slice(&self) -> Option<&[u8]> {
         if let ImageResource::Data(d) = self {
             Some(d.as_slice())
+        } else {
+            None
+        }
+    }
+
+    /// Convert this `ImageResource` instance into a `Magickwand` reference (if it is possible).
+    pub fn as_magick_wand(&self) -> Option<&MagickWand> {
+        if let ImageResource::MagickWand(mw) = self {
+            Some(mw)
         } else {
             None
         }
