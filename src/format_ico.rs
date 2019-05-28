@@ -97,6 +97,8 @@ pub fn to_ico(output: &mut ImageResource, input: &ImageResource, config: &ICOCon
 
         mw.set_image_format("RGBA")?;
 
+        mw.set_image_depth(8)?;
+
         let temp = mw.write_image_blob("RGBA")?;
 
         let icon_image = ico::IconImage::from_rgba_data(width as u32, height as u32, temp);

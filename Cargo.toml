@@ -1,6 +1,6 @@
 [package]
 name = "image-convert"
-version = "0.8.0"
+version = "0.8.1"
 authors = ["Magic Len <len@magiclen.org>"]
 repository = "https://github.com/magiclen/image-convert"
 homepage = "https://magiclen.org/image-convert"
