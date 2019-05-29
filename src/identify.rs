@@ -45,6 +45,8 @@ pub fn identify(output: &mut Option<Option<MagickWand>>, input: &ImageResource) 
             let mw = MagickWand::new();
 
             if output.is_some() {
+                set_none_background!(mw);
+
                 mw.read_image(p.as_str())?;
             } else {
                 mw.ping_image(p.as_str())?;
@@ -62,6 +64,8 @@ pub fn identify(output: &mut Option<Option<MagickWand>>, input: &ImageResource) 
             let mw = MagickWand::new();
 
             if output.is_some() {
+                set_none_background!(mw);
+
                 mw.read_image_blob(b)?;
             } else {
                 mw.ping_image_blob(b)?;

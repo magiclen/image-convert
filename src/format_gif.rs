@@ -54,19 +54,29 @@ impl ImageConfig for GIFConfig {
 pub fn to_gif(output: &mut ImageResource, input: &ImageResource, config: &GIFConfig) -> Result<(), &'static str> {
     START_CALL_ONCE();
 
-    let mut mw = MagickWand::new();
-
-    match input {
+    let mut mw = match input {
         ImageResource::Path(p) => {
+            let mw = MagickWand::new();
+
+            set_none_background!(mw);
+
             mw.read_image(p.as_str())?;
+
+            mw
         }
         ImageResource::Data(b) => {
+            let mw = MagickWand::new();
+
+            set_none_background!(mw);
+
             mw.read_image_blob(b)?;
+
+            mw
         }
-        ImageResource::MagickWand(mw_2) => {
-            mw = mw_2.clone();
+        ImageResource::MagickWand(mw) => {
+            mw.clone()
         }
-    }
+    };
 
     let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
 

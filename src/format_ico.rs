@@ -72,32 +72,43 @@ pub fn to_ico(output: &mut ImageResource, input: &ImageResource, config: &ICOCon
 
     let mut icon_dir = ico::IconDir::new(ico::ResourceType::Icon);
 
-    for config in ICOConfigInner::from(&config).iter() {
-        let mut mw = MagickWand::new();
+    let mut mw = match input {
+        ImageResource::Path(p) => {
+            let mw = MagickWand::new();
 
-        match input {
-            ImageResource::Path(p) => {
-                mw.read_image(p.as_str())?;
-            }
-            ImageResource::Data(b) => {
-                mw.read_image_blob(b)?;
-            }
-            ImageResource::MagickWand(mw_2) => {
-                mw = mw_2.clone();
-            }
+            set_none_background!(mw);
+
+            mw.read_image(p.as_str())?;
+
+            mw
         }
+        ImageResource::Data(b) => {
+            let mw = MagickWand::new();
+
+            set_none_background!(mw);
+
+            mw.read_image_blob(b)?;
+
+            mw
+        }
+        ImageResource::MagickWand(mw) => {
+            mw.clone()
+        }
+    };
+
+    mw.profile_image("*", None)?;
+
+    mw.set_image_format("RGBA")?;
+    mw.set_image_depth(8)?;
+
+    for config in ICOConfigInner::from(&config).iter() {
+        let mw = mw.clone();
 
         let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
 
         mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
 
-        mw.profile_image("*", None)?;
-
         mw.sharpen_image(0f64, sharpen)?;
-
-        mw.set_image_format("RGBA")?;
-
-        mw.set_image_depth(8)?;
 
         let temp = mw.write_image_blob("RGBA")?;
 

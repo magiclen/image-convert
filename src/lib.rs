@@ -57,6 +57,23 @@ extern crate enum_ordinalize;
 extern crate ico;
 extern crate starts_ends_with_caseless;
 
+#[cfg(feature = "none-background")]
+macro_rules! set_none_background {
+    ($mw:expr) => {
+        {
+            let mut pw = crate::magick_rust::PixelWand::new();
+            pw.set_color("none")?;
+            $mw.set_background_color(&pw)?;
+        }
+    };
+}
+
+#[cfg(not(feature = "none-background"))]
+macro_rules! set_none_background {
+    ($mw:expr) => {
+    };
+}
+
 mod color_name;
 mod interlace_type;
 mod image_resource;
