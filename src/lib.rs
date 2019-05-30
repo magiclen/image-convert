@@ -161,7 +161,7 @@ pub fn fetch_magic_wand(input: &ImageResource, config: &ImageConfig) -> Result<(
                             }
                         }
                         None => {
-                            Ok((mw, false))
+                            Ok((mw, true))
                         }
                     }
                 }
@@ -193,7 +193,7 @@ pub fn fetch_magic_wand(input: &ImageResource, config: &ImageConfig) -> Result<(
                             }
                         }
                         None => {
-                            Ok((mw, false))
+                            Ok((mw, true))
                         }
                     }
                 }
