@@ -1,5 +1,6 @@
-use crate::{START_CALL_ONCE, ColorName, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, magick_rust::{MagickWand, PixelWand, bindings}, starts_ends_with_caseless::EndsWithCaseless};
+use crate::{ColorName, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, fetch_magic_wand, magick_rust::{PixelWand, bindings}, starts_ends_with_caseless::EndsWithCaseless};
 
+#[derive(Debug)]
 /// The output config of a RAW image with gray colors.
 pub struct GrayRawConfig {
     /// The width of the output image. `0` means the original width.
@@ -48,31 +49,7 @@ impl ImageConfig for GrayRawConfig {
 
 /// Convert an image to a RAW image with gray colors.
 pub fn to_gray_raw(output: &mut ImageResource, input: &ImageResource, config: &GrayRawConfig) -> Result<(), &'static str> {
-    START_CALL_ONCE();
-
-    let mut mw = match input {
-        ImageResource::Path(p) => {
-            let mw = MagickWand::new();
-
-            set_none_background!(mw);
-
-            mw.read_image(p.as_str())?;
-
-            mw
-        }
-        ImageResource::Data(b) => {
-            let mw = MagickWand::new();
-
-            set_none_background!(mw);
-
-            mw.read_image_blob(b)?;
-
-            mw
-        }
-        ImageResource::MagickWand(mw) => {
-            mw.clone()
-        }
-    };
+    let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if let Some(background_color) = config.background_color {
         let mut pw = PixelWand::new();
@@ -81,9 +58,11 @@ pub fn to_gray_raw(output: &mut ImageResource, input: &ImageResource, config: &G
         mw.set_image_alpha_channel(bindings::AlphaChannelOption_RemoveAlphaChannel)?;
     }
 
-    let (width, height, _) = compute_output_size_sharpen(&mw, config);
+    if !vector {
+        let (width, height, _) = compute_output_size_sharpen(&mw, config);
 
-    mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
+        mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
+    }
 
     mw.profile_image("*", None)?;
 

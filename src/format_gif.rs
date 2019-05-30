@@ -1,5 +1,6 @@
-use crate::{START_CALL_ONCE, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, magick_rust::{MagickWand, bindings}, starts_ends_with_caseless::EndsWithCaseless};
+use crate::{InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings, starts_ends_with_caseless::EndsWithCaseless};
 
+#[derive(Debug)]
 /// The output config of a GIF image.
 pub struct GIFConfig {
     /// The width of the output image. `0` means the original width.
@@ -52,43 +53,21 @@ impl ImageConfig for GIFConfig {
 
 /// Convert an image to a GIF image.
 pub fn to_gif(output: &mut ImageResource, input: &ImageResource, config: &GIFConfig) -> Result<(), &'static str> {
-    START_CALL_ONCE();
+    let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
-    let mut mw = match input {
-        ImageResource::Path(p) => {
-            let mw = MagickWand::new();
+    if !vector {
+        let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
 
-            set_none_background!(mw);
+        mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
 
-            mw.read_image(p.as_str())?;
-
-            mw
-        }
-        ImageResource::Data(b) => {
-            let mw = MagickWand::new();
-
-            set_none_background!(mw);
-
-            mw.read_image_blob(b)?;
-
-            mw
-        }
-        ImageResource::MagickWand(mw) => {
-            mw.clone()
-        }
-    };
-
-    let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
-
-    mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
+        mw.sharpen_image(0f64, sharpen)?;
+    }
 
     mw.profile_image("*", None)?;
 
     mw.set_image_compression_quality(100)?;
 
     mw.set_interlace_scheme(InterlaceType::LineInterlace.ordinal() as bindings::InterlaceType)?;
-
-    mw.sharpen_image(0f64, sharpen)?;
 
     mw.set_image_format("GIF")?;
 

@@ -1,9 +1,10 @@
 use std::cmp;
+use std::fmt::Debug;
 
 use crate::magick_rust::MagickWand;
 
 // The general config of an image format.
-pub(crate) trait ImageConfig {
+pub trait ImageConfig: Debug {
     fn get_width(&self) -> u16;
     fn get_height(&self) -> u16;
     fn get_sharpen(&self) -> f64;
@@ -16,7 +17,6 @@ pub(crate) fn compute_output_size_sharpen(mw: &MagickWand, config: &ImageConfig)
     let mut height = config.get_height();
     let original_width = mw.get_image_width() as u16;
     let original_height = mw.get_image_height() as u16;
-    let ratio = original_width as f64 / original_height as f64;
 
     if config.is_shrink_only() {
         if width == 0 || width > original_width {
@@ -33,6 +33,8 @@ pub(crate) fn compute_output_size_sharpen(mw: &MagickWand, config: &ImageConfig)
             height = original_height
         }
     }
+
+    let ratio = original_width as f64 / original_height as f64;
 
     let wr = original_width as f64 / width as f64;
     let hr = original_height as f64 / height as f64;
@@ -57,4 +59,45 @@ pub(crate) fn compute_output_size_sharpen(mw: &MagickWand, config: &ImageConfig)
     }
 
     (width, height, adjusted_sharpen)
+}
+
+// Compute the output size if it is different.
+pub(crate) fn compute_output_size_if_different(mw: &MagickWand, config: &ImageConfig) -> Option<(u16, u16)> {
+    let mut width = config.get_width();
+    let mut height = config.get_height();
+    let original_width = mw.get_image_width() as u16;
+    let original_height = mw.get_image_height() as u16;
+
+    if config.is_shrink_only() {
+        if width == 0 || width > original_width {
+            width = original_width
+        }
+        if height == 0 || height > original_height {
+            height = original_height
+        }
+    } else {
+        if width == 0 {
+            width = original_width
+        }
+        if height == 0 {
+            height = original_height
+        }
+    }
+
+    if width == original_width && height == original_height {
+        return None;
+    }
+
+    let ratio = original_width as f64 / original_height as f64;
+
+    let wr = original_width as f64 / width as f64;
+    let hr = original_height as f64 / height as f64;
+
+    if wr >= hr {
+        height = (width as f64 / ratio) as u16;
+    } else {
+        width = (height as f64 * ratio) as u16;
+    }
+
+    Some((width, height))
 }

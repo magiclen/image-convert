@@ -1,5 +1,6 @@
-use crate::{START_CALL_ONCE, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, magick_rust::{MagickWand, bindings}, starts_ends_with_caseless::EndsWithCaseless};
+use crate::{InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings, starts_ends_with_caseless::EndsWithCaseless};
 
+#[derive(Debug)]
 /// The output config of a WEBP image.
 pub struct WEBPConfig {
     /// The width of the output image. `0` means the original width.
@@ -46,43 +47,21 @@ impl ImageConfig for WEBPConfig {
 
 /// Convert an image to a WEBP image.
 pub fn to_webp(output: &mut ImageResource, input: &ImageResource, config: &WEBPConfig) -> Result<(), &'static str> {
-    START_CALL_ONCE();
+    let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
-    let mut mw = match input {
-        ImageResource::Path(p) => {
-            let mw = MagickWand::new();
+    if !vector {
+        let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
 
-            set_none_background!(mw);
+        mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
 
-            mw.read_image(p.as_str())?;
-
-            mw
-        }
-        ImageResource::Data(b) => {
-            let mw = MagickWand::new();
-
-            set_none_background!(mw);
-
-            mw.read_image_blob(b)?;
-
-            mw
-        }
-        ImageResource::MagickWand(mw) => {
-            mw.clone()
-        }
-    };
-
-    let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
-
-    mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
+        mw.sharpen_image(0f64, sharpen)?;
+    }
 
     mw.profile_image("*", None)?;
 
     mw.set_image_compression_quality(config.quality.min(100) as usize)?;
 
     mw.set_interlace_scheme(InterlaceType::LineInterlace.ordinal() as bindings::InterlaceType)?;
-
-    mw.sharpen_image(0f64, sharpen)?;
 
     mw.set_image_format("WEBP")?;
 

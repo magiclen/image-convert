@@ -1,5 +1,6 @@
-use crate::{START_CALL_ONCE, ColorName, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, magick_rust::{MagickWand, PixelWand, bindings}, starts_ends_with_caseless::EndsWithCaselessMultiple};
+use crate::{ColorName, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, fetch_magic_wand, magick_rust::{PixelWand, bindings}, starts_ends_with_caseless::EndsWithCaselessMultiple};
 
+#[derive(Debug)]
 /// The output config of a JPEG image.
 pub struct JPGConfig {
     /// The width of the output image. `0` means the original width.
@@ -68,31 +69,7 @@ impl ImageConfig for JPGConfig {
 
 /// Convert an image to a JPEG image.
 pub fn to_jpg(output: &mut ImageResource, input: &ImageResource, config: &JPGConfig) -> Result<(), &'static str> {
-    START_CALL_ONCE();
-
-    let mut mw = match input {
-        ImageResource::Path(p) => {
-            let mw = MagickWand::new();
-
-            set_none_background!(mw);
-
-            mw.read_image(p.as_str())?;
-
-            mw
-        }
-        ImageResource::Data(b) => {
-            let mw = MagickWand::new();
-
-            set_none_background!(mw);
-
-            mw.read_image_blob(b)?;
-
-            mw
-        }
-        ImageResource::MagickWand(mw) => {
-            mw.clone()
-        }
-    };
+    let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if let Some(background_color) = config.background_color {
         let mut pw = PixelWand::new();
@@ -101,9 +78,13 @@ pub fn to_jpg(output: &mut ImageResource, input: &ImageResource, config: &JPGCon
         mw.set_image_alpha_channel(bindings::AlphaChannelOption_RemoveAlphaChannel)?;
     }
 
-    let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
+    if !vector {
+        let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
 
-    mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
+        mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
+
+        mw.sharpen_image(0f64, sharpen)?;
+    }
 
     mw.profile_image("*", None)?;
 
@@ -114,8 +95,6 @@ pub fn to_jpg(output: &mut ImageResource, input: &ImageResource, config: &JPGCon
     mw.set_image_compression_quality(config.quality.min(100) as usize)?;
 
     mw.set_interlace_scheme(InterlaceType::LineInterlace.ordinal() as bindings::InterlaceType)?;
-
-    mw.sharpen_image(0f64, sharpen)?;
 
     mw.set_image_format("JPEG")?;
 

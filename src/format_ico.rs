@@ -1,5 +1,6 @@
-use crate::{START_CALL_ONCE, ImageResource, ImageConfig, compute_output_size_sharpen, magick_rust::{MagickWand, bindings}, starts_ends_with_caseless::EndsWithCaseless};
+use crate::{ImageResource, ImageConfig, compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings, starts_ends_with_caseless::EndsWithCaseless};
 
+#[derive(Debug)]
 struct ICOConfigInner {
     width: u16,
     height: u16,
@@ -68,53 +69,93 @@ impl ImageConfig for ICOConfigInner {
 
 /// Convert an image to an ICO image.
 pub fn to_ico(output: &mut ImageResource, input: &ImageResource, config: &ICOConfig) -> Result<(), &'static str> {
-    START_CALL_ONCE();
-
     let mut icon_dir = ico::IconDir::new(ico::ResourceType::Icon);
 
-    let mut mw = match input {
-        ImageResource::Path(p) => {
-            let mw = MagickWand::new();
+    let ico_config_inner = ICOConfigInner::from(config);
 
-            set_none_background!(mw);
+    let mut config_iter = ico_config_inner.iter();
 
-            mw.read_image(p.as_str())?;
+    let config = config_iter.next();
 
-            mw
+    if let Some(config) = config {
+        let (mut mw, vector) = fetch_magic_wand(input, config)?;
+
+        if vector {
+            mw.profile_image("*", None)?;
+
+            mw.set_image_format("RGBA")?;
+            mw.set_image_depth(8)?;
+
+            {
+                let temp = mw.write_image_blob("RGBA")?;
+
+                let icon_image = ico::IconImage::from_rgba_data(config.width as u32, config.height as u32, temp);
+
+                icon_dir.add_entry(ico::IconDirEntry::encode_as_bmp(&icon_image).unwrap());
+            }
+
+            loop {
+                if let Some(config) = config_iter.next() {
+                    let (mut mw, vector) = fetch_magic_wand(input, config)?;
+
+                    if !vector {
+                        return Err("The input image may not be a correct vector.");
+                    }
+
+                    mw.profile_image("*", None)?;
+
+                    mw.set_image_format("RGBA")?;
+                    mw.set_image_depth(8)?;
+
+                    let temp = mw.write_image_blob("RGBA")?;
+
+                    let icon_image = ico::IconImage::from_rgba_data(config.width as u32, config.height as u32, temp);
+
+                    icon_dir.add_entry(ico::IconDirEntry::encode_as_bmp(&icon_image).unwrap());
+                } else {
+                    break;
+                }
+            }
+        } else {
+            mw.profile_image("*", None)?;
+
+            mw.set_image_format("RGBA")?;
+            mw.set_image_depth(8)?;
+
+            {
+                let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
+
+                mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
+
+                mw.sharpen_image(0f64, sharpen)?;
+
+                let temp = mw.write_image_blob("RGBA")?;
+
+                let icon_image = ico::IconImage::from_rgba_data(width as u32, height as u32, temp);
+
+                icon_dir.add_entry(ico::IconDirEntry::encode_as_bmp(&icon_image).unwrap());
+            }
+
+            loop {
+                if let Some(config) = config_iter.next() {
+                    let mw = mw.clone();
+
+                    let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
+
+                    mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
+
+                    mw.sharpen_image(0f64, sharpen)?;
+
+                    let temp = mw.write_image_blob("RGBA")?;
+
+                    let icon_image = ico::IconImage::from_rgba_data(width as u32, height as u32, temp);
+
+                    icon_dir.add_entry(ico::IconDirEntry::encode_as_bmp(&icon_image).unwrap());
+                } else {
+                    break;
+                }
+            }
         }
-        ImageResource::Data(b) => {
-            let mw = MagickWand::new();
-
-            set_none_background!(mw);
-
-            mw.read_image_blob(b)?;
-
-            mw
-        }
-        ImageResource::MagickWand(mw) => {
-            mw.clone()
-        }
-    };
-
-    mw.profile_image("*", None)?;
-
-    mw.set_image_format("RGBA")?;
-    mw.set_image_depth(8)?;
-
-    for config in ICOConfigInner::from(&config).iter() {
-        let mw = mw.clone();
-
-        let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
-
-        mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
-
-        mw.sharpen_image(0f64, sharpen)?;
-
-        let temp = mw.write_image_blob("RGBA")?;
-
-        let icon_image = ico::IconImage::from_rgba_data(width as u32, height as u32, temp);
-
-        icon_dir.add_entry(ico::IconDirEntry::encode_as_bmp(&icon_image).unwrap());
     }
 
     match output {

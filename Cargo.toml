@@ -1,6 +1,6 @@
 [package]
 name = "image-convert"
-version = "0.8.3"
+version = "0.8.4"
 authors = ["Magic Len <len@magiclen.org>"]
 repository = "https://github.com/magiclen/image-convert"
 homepage = "https://magiclen.org/image-convert"
@@ -15,8 +15,11 @@ travis-ci = { repository = "magiclen/image-convert", branch = "master" }
 appveyor = { repository = "magiclen/image-convert", branch = "master", service = "github" }
 
 [dependencies]
+regex = "1"
+lazy_static = "1"
 starts-ends-with-caseless = "0.3.0"
-magick_rust = "0.11"
+magick_rust = {path = "/home/magiclen/Downloads/magick-rust-master"}
+#magick_rust = "0.11"
 enum-ordinalize = "2.2.1"
 ico = "0.1.0"
 

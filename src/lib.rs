@@ -56,6 +56,9 @@ pub extern crate magick_rust;
 extern crate enum_ordinalize;
 extern crate ico;
 extern crate starts_ends_with_caseless;
+extern crate regex;
+#[macro_use]
+extern crate lazy_static;
 
 #[cfg(feature = "none-background")]
 macro_rules! set_none_background {
@@ -102,7 +105,9 @@ pub use self::format_ico::*;
 pub use self::format_gray_raw::*;
 pub use self::format_pgm::*;
 
-use magick_rust::magick_wand_genesis;
+use magick_rust::{magick_wand_genesis, MagickWand};
+
+use regex::Regex;
 
 static START: Once = ONCE_INIT;
 
@@ -112,3 +117,180 @@ pub const START_CALL_ONCE: fn() = || {
         magick_wand_genesis();
     });
 };
+
+lazy_static! {
+    static ref RE_SVG: Regex = {
+        Regex::new("(?i)(<svg[\\s\\S]*?>)").unwrap()
+    };
+
+    static ref RE_WIDTH: Regex = {
+        Regex::new("(?i)([\\s\\S]*?[\\s]width[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap()
+    };
+
+    static ref RE_HEIGHT: Regex = {
+        Regex::new("(?i)([\\s\\S]*?[\\s]height[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap()
+    };
+}
+
+pub fn fetch_magic_wand(input: &ImageResource, config: &ImageConfig) -> Result<(MagickWand, bool), &'static str> {
+    START_CALL_ONCE();
+
+    match input {
+        ImageResource::Path(p) => {
+            let mw = MagickWand::new();
+
+            set_none_background!(mw);
+
+            mw.read_image(p.as_str())?;
+
+            let format = mw.get_image_format()?;
+
+            match format.as_str() {
+                "SVG" | "MVG" => {
+                    match compute_output_size_if_different(&mw, config) {
+                        Some((new_width, new_height)) => {
+                            use std::fs;
+
+                            match fs::read_to_string(p) {
+                                Ok(svg) => {
+                                    fetch_magic_wand_inner(mw, new_width, new_height, svg)
+                                }
+                                Err(_) => {
+                                    Ok((mw, false))
+                                }
+                            }
+                        }
+                        None => {
+                            Ok((mw, false))
+                        }
+                    }
+                }
+                _ => {
+                    Ok((mw, false))
+                }
+            }
+        }
+        ImageResource::Data(b) => {
+            let mw = MagickWand::new();
+
+            set_none_background!(mw);
+
+            mw.read_image_blob(b)?;
+
+            let format = mw.get_image_format()?;
+
+            match format.as_str() {
+                "SVG" | "MVG" => {
+                    match compute_output_size_if_different(&mw, config) {
+                        Some((new_width, new_height)) => {
+                            match String::from_utf8(b.to_vec()) {
+                                Ok(svg) => {
+                                    fetch_magic_wand_inner(mw, new_width, new_height, svg)
+                                }
+                                Err(_) => {
+                                    Ok((mw, false))
+                                }
+                            }
+                        }
+                        None => {
+                            Ok((mw, false))
+                        }
+                    }
+                }
+                _ => {
+                    Ok((mw, false))
+                }
+            }
+        }
+        ImageResource::MagickWand(mw) => {
+            Ok((mw.clone(), false))
+        }
+    }
+}
+
+fn fetch_magic_wand_inner(mw: MagickWand, new_width: u16, new_height: u16, mut svg: String) -> Result<(MagickWand, bool), &'static str> {
+    let result = match crate::RE_SVG.captures(&svg) {
+        Some(captures) => {
+            let target = captures.get(1).unwrap();
+
+            let s = target.start() + 4;
+            let mut e = target.end() - 1;
+
+            let mut reload = false;
+
+            let new_width = format!("{}px", new_width);
+            let new_height = format!("{}px", new_height);
+
+            let t = match crate::RE_WIDTH.captures(&svg[s..e]) {
+                Some(captures) => {
+                    let target = captures.get(2).unwrap();
+
+                    let ts = target.start() + s;
+                    let te = target.end() + s;
+
+                    Some((ts, te))
+                }
+                None => {
+                    None
+                }
+            };
+
+            if let Some((ts, te)) = t {
+                if svg[ts..te].ne(&new_width) {
+                    svg.replace_range(ts..te, &new_width);
+
+                    let tl = te - ts;
+                    let l = new_height.len();
+
+                    if l > tl {
+                        e += l - tl;
+                    } else if tl > l {
+                        e -= tl - l;
+                    }
+
+                    reload = true;
+                }
+            }
+
+            let t = match crate::RE_HEIGHT.captures(&svg[s..e]) {
+                Some(captures) => {
+                    let target = captures.get(2).unwrap();
+
+                    let ts = target.start() + s;
+                    let te = target.end() + s;
+
+                    Some((ts, te))
+                }
+                None => {
+                    None
+                }
+            };
+
+            if let Some((ts, te)) = t {
+                if svg[ts..te].ne(&new_height) {
+                    svg.replace_range(ts..te, &new_height);
+
+                    reload = true;
+                }
+            }
+
+            if reload {
+                let new_mw = MagickWand::new();
+
+                set_none_background!(new_mw);
+
+                match new_mw.read_image_blob(svg.into_bytes()) {
+                    Ok(_) => (new_mw, true),
+                    Err(_) => (mw, false)
+                }
+            } else {
+                (mw, false)
+            }
+        }
+        None => {
+            (mw, false)
+        }
+    };
+
+    Ok(result)
+}
