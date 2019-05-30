@@ -63,6 +63,23 @@ fn to_png_file2file() {
 }
 
 #[test]
+fn to_png_file2file_small() {
+    let source_image_path = Path::new(INPUT_IMAGE_PATH);
+
+    let target_image_path = Path::join(source_image_path.parent().unwrap(), "dropbox_small_output.png");
+
+    let mut config = PNGConfig::new();
+
+    config.width = 16;
+
+    let input = ImageResource::from_path(source_image_path);
+
+    let mut output = ImageResource::from_path(target_image_path);
+
+    to_png(&mut output, &input, &config).unwrap();
+}
+
+#[test]
 fn to_gif_file2file() {
     let source_image_path = Path::new(INPUT_IMAGE_PATH);
 

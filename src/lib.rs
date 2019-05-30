@@ -149,14 +149,20 @@ pub fn fetch_magic_wand(input: &ImageResource, config: &ImageConfig) -> Result<(
                 "SVG" | "MVG" => {
                     match compute_output_size_if_different(&mw, config) {
                         Some((new_width, new_height)) => {
-                            use std::fs;
+                            let original_width = mw.get_image_width() as u16;
 
-                            match fs::read_to_string(p) {
-                                Ok(svg) => {
-                                    fetch_magic_wand_inner(mw, new_width, new_height, svg)
-                                }
-                                Err(_) => {
-                                    Ok((mw, false))
+                            if new_width < original_width { // TODO ImageMagick handles the smaller size of SVG poorly, so just do resize
+                                Ok((mw, false))
+                            } else {
+                                use std::fs;
+
+                                match fs::read_to_string(p) {
+                                    Ok(svg) => {
+                                        fetch_magic_wand_inner(mw, new_width, new_height, svg)
+                                    }
+                                    Err(_) => {
+                                        Ok((mw, false))
+                                    }
                                 }
                             }
                         }
@@ -183,12 +189,18 @@ pub fn fetch_magic_wand(input: &ImageResource, config: &ImageConfig) -> Result<(
                 "SVG" | "MVG" => {
                     match compute_output_size_if_different(&mw, config) {
                         Some((new_width, new_height)) => {
-                            match String::from_utf8(b.to_vec()) {
-                                Ok(svg) => {
-                                    fetch_magic_wand_inner(mw, new_width, new_height, svg)
-                                }
-                                Err(_) => {
-                                    Ok((mw, false))
+                            let original_width = mw.get_image_width() as u16;
+
+                            if new_width < original_width { // TODO ImageMagick handles the smaller size of SVG poorly, so just do resize
+                                Ok((mw, false))
+                            } else {
+                                match String::from_utf8(b.to_vec()) {
+                                    Ok(svg) => {
+                                        fetch_magic_wand_inner(mw, new_width, new_height, svg)
+                                    }
+                                    Err(_) => {
+                                        Ok((mw, false))
+                                    }
                                 }
                             }
                         }
