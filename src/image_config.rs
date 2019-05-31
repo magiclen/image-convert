@@ -55,7 +55,7 @@ pub(crate) fn compute_output_size_sharpen(mw: &MagickWand, config: &ImageConfig)
         let m = cmp::max(origin_pixels, resize_pixels) as f64;
         let n = cmp::min(origin_pixels, resize_pixels) as f64;
 
-        adjusted_sharpen = (resize_level * ((m - n) / m)).min(3f64).max(0.1f64);
+        adjusted_sharpen = (resize_level * ((m - n) / m)).min(3f64);
     }
 
     (width, height, adjusted_sharpen)
