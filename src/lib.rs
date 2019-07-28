@@ -132,7 +132,7 @@ lazy_static! {
     };
 }
 
-pub fn fetch_magic_wand(input: &ImageResource, config: &ImageConfig) -> Result<(MagickWand, bool), &'static str> {
+pub fn fetch_magic_wand(input: &ImageResource, config: &dyn ImageConfig) -> Result<(MagickWand, bool), &'static str> {
     START_CALL_ONCE();
 
     match input {

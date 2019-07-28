@@ -12,7 +12,7 @@ pub trait ImageConfig: Debug {
 }
 
 // Compute an appropriate sharpen value for the resized image.
-pub(crate) fn compute_output_size_sharpen(mw: &MagickWand, config: &ImageConfig) -> (u16, u16, f64) {
+pub(crate) fn compute_output_size_sharpen(mw: &MagickWand, config: &dyn ImageConfig) -> (u16, u16, f64) {
     let mut width = config.get_width();
     let mut height = config.get_height();
     let original_width = mw.get_image_width() as u16;
@@ -62,7 +62,7 @@ pub(crate) fn compute_output_size_sharpen(mw: &MagickWand, config: &ImageConfig)
 }
 
 // Compute the output size if it is different.
-pub(crate) fn compute_output_size_if_different(mw: &MagickWand, config: &ImageConfig) -> Option<(u16, u16)> {
+pub(crate) fn compute_output_size_if_different(mw: &MagickWand, config: &dyn ImageConfig) -> Option<(u16, u16)> {
     let mut width = config.get_width();
     let mut height = config.get_height();
     let original_width = mw.get_image_width() as u16;

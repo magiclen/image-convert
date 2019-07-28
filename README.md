@@ -2,7 +2,6 @@ Image Convert
 ====================
 
 [![Build Status](https://travis-ci.org/magiclen/image-convert.svg?branch=master)](https://travis-ci.org/magiclen/image-convert)
-[![Build status](https://ci.appveyor.com/api/projects/status/a4kyteq8o64lydq5/branch/master?svg=true)](https://ci.appveyor.com/project/magiclen/image-convert/branch/master)
 
 This crate is a high level library using **MagickWand** (ImageMagick) for image identification, conversion, interlacing and high quality resizing.
 

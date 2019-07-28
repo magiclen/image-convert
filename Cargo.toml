@@ -1,6 +1,6 @@
 [package]
 name = "image-convert"
-version = "0.8.8"
+version = "0.8.9"
 authors = ["Magic Len <len@magiclen.org>"]
 edition = "2018"
 repository = "https://github.com/magiclen/image-convert"
@@ -11,9 +11,9 @@ description= "A high level library for image identification, conversion, interla
 readme = "README.md"
 license = "MIT"
 
-[badges]
-travis-ci = { repository = "magiclen/image-convert", branch = "master" }
-appveyor = { repository = "magiclen/image-convert", branch = "master", service = "github" }
+[badges.travis-ci]
+repository = "magiclen/image-convert"
+branch = "master"
 
 [dependencies]
 regex = "1"

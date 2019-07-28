@@ -4,12 +4,14 @@ rust:
   - stable
   - beta
   - nightly
+
 os:
   - linux
   - osx
+
 before_install:
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt-get update ; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt-get install libwebp-dev ; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt update ; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt install libwebp-dev ; fi
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then brew update ; fi
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then brew install webp ; fi
   - wget http://www.imagemagick.org/download/ImageMagick.tar.gz
@@ -20,4 +22,21 @@ before_install:
   - make
   - sudo make install
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo ldconfig ; fi
-  - cd ..
+
+matrix:
+  include:
+    - rust: stable
+      os: linux
+      env: TARGET=x86_64-unknown-linux-musl
+      install: rustup target add $TARGET
+      script: cargo test --target $TARGET
+    - rust: beta
+      os: linux
+      env: TARGET=x86_64-unknown-linux-musl
+      install: rustup target add $TARGET
+      script: cargo test --target $TARGET
+    - rust: nightly
+      os: linux
+      env: TARGET=x86_64-unknown-linux-musl
+      install: rustup target add $TARGET
+      script: cargo test --target $TARGET
