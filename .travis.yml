@@ -9,7 +9,7 @@ os:
   - linux
   - osx
 
-before_install:
+install:
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt update ; fi
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt install libwebp-dev ; fi
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then brew update ; fi
