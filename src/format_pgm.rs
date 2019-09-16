@@ -1,4 +1,9 @@
-use crate::{ColorName, ImageResource, ImageConfig, compute_output_size_sharpen, fetch_magic_wand, magick_rust::{PixelWand, bindings}, starts_ends_with_caseless::EndsWithCaseless};
+use crate::{
+    compute_output_size_sharpen, fetch_magic_wand,
+    magick_rust::{bindings, PixelWand},
+    starts_ends_with_caseless::EndsWithCaseless,
+    ColorName, ImageConfig, ImageResource,
+};
 
 #[derive(Debug)]
 /// The output config of a PGM image.
@@ -26,6 +31,7 @@ impl PGMConfig {
     ///     background_color: None,
     /// }
     /// ```
+    #[inline]
     pub fn new() -> PGMConfig {
         PGMConfig {
             width: 0u16,
@@ -34,6 +40,13 @@ impl PGMConfig {
             sharpen: -1f64,
             background_color: None,
         }
+    }
+}
+
+impl Default for PGMConfig {
+    #[inline]
+    fn default() -> Self {
+        PGMConfig::new()
     }
 }
 
@@ -56,7 +69,11 @@ impl ImageConfig for PGMConfig {
 }
 
 /// Convert an image to a PGM image.
-pub fn to_pgm(output: &mut ImageResource, input: &ImageResource, config: &PGMConfig) -> Result<(), &'static str> {
+pub fn to_pgm(
+    output: &mut ImageResource,
+    input: &ImageResource,
+    config: &PGMConfig,
+) -> Result<(), &'static str> {
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if let Some(background_color) = config.background_color {

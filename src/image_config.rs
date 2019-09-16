@@ -1,4 +1,3 @@
-use std::cmp;
 use std::fmt::Debug;
 
 use crate::magick_rust::MagickWand;
@@ -12,7 +11,10 @@ pub trait ImageConfig: Debug {
 }
 
 // Compute an appropriate sharpen value for the resized image.
-pub(crate) fn compute_output_size_sharpen(mw: &MagickWand, config: &dyn ImageConfig) -> (u16, u16, f64) {
+pub(crate) fn compute_output_size_sharpen(
+    mw: &MagickWand,
+    config: &dyn ImageConfig,
+) -> (u16, u16, f64) {
     let mut width = config.get_width();
     let mut height = config.get_height();
     let original_width = mw.get_image_width() as u16;
@@ -34,26 +36,37 @@ pub(crate) fn compute_output_size_sharpen(mw: &MagickWand, config: &dyn ImageCon
         }
     }
 
-    let ratio = original_width as f64 / original_height as f64;
+    let original_width_f64 = f64::from(original_width);
+    let original_height_f64 = f64::from(original_height);
+    let width_f64 = f64::from(width);
+    let height_f64 = f64::from(height);
 
-    let wr = original_width as f64 / width as f64;
-    let hr = original_height as f64 / height as f64;
+    let ratio = original_width_f64 / original_height_f64;
+
+    let wr = original_width_f64 / width_f64;
+    let hr = original_height_f64 / height_f64;
 
     if wr >= hr {
-        height = (width as f64 / ratio) as u16;
+        height = (width_f64 / ratio) as u16;
     } else {
-        width = (height as f64 * ratio) as u16;
+        width = (height_f64 * ratio) as u16;
     }
 
     let mut adjusted_sharpen = config.get_sharpen();
 
     if adjusted_sharpen < 0f64 {
-        let origin_pixels = original_width as u32 * original_height as u32;
-        let resize_pixels = width as u32 * height as u32;
-        let resize_level = (resize_pixels as f64 / 5000000f64).sqrt();
+        let origin_pixels = original_width_f64 * original_height_f64;
+        let resize_pixels = width_f64 * height_f64;
+        let resize_level = (resize_pixels / 5_000_000f64).sqrt();
 
-        let m = cmp::max(origin_pixels, resize_pixels) as f64;
-        let n = cmp::min(origin_pixels, resize_pixels) as f64;
+        let m;
+        let n = if origin_pixels >= resize_pixels {
+            m = origin_pixels;
+            resize_pixels
+        } else {
+            m = resize_pixels;
+            origin_pixels
+        };
 
         adjusted_sharpen = (resize_level * ((m - n) / m)).min(3f64);
     }
@@ -62,7 +75,10 @@ pub(crate) fn compute_output_size_sharpen(mw: &MagickWand, config: &dyn ImageCon
 }
 
 // Compute the output size if it is different.
-pub(crate) fn compute_output_size_if_different(mw: &MagickWand, config: &dyn ImageConfig) -> Option<(u16, u16)> {
+pub(crate) fn compute_output_size_if_different(
+    mw: &MagickWand,
+    config: &dyn ImageConfig,
+) -> Option<(u16, u16)> {
     let mut width = config.get_width();
     let mut height = config.get_height();
     let original_width = mw.get_image_width() as u16;
@@ -88,15 +104,20 @@ pub(crate) fn compute_output_size_if_different(mw: &MagickWand, config: &dyn Ima
         return None;
     }
 
-    let ratio = original_width as f64 / original_height as f64;
+    let original_width_f64 = f64::from(original_width);
+    let original_height_f64 = f64::from(original_height);
+    let width_f64 = f64::from(width);
+    let height_f64 = f64::from(height);
 
-    let wr = original_width as f64 / width as f64;
-    let hr = original_height as f64 / height as f64;
+    let ratio = original_width_f64 / original_height_f64;
+
+    let wr = original_width_f64 / width_f64;
+    let hr = original_height_f64 / height_f64;
 
     if wr >= hr {
-        height = (width as f64 / ratio) as u16;
+        height = (width_f64 / ratio) as u16;
     } else {
-        width = (height as f64 * ratio) as u16;
+        width = (height_f64 * ratio) as u16;
     }
 
     Some((width, height))

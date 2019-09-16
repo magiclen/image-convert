@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 /// List of Color Names. Refer to [this page](https://imagemagick.org/script/color.php).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ColorName {
@@ -21,7 +23,7 @@ pub enum ColorName {
 
 impl ColorName {
     /// Get the static string slice of this color name.
-    pub fn as_str(&self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             ColorName::White => "white",
             ColorName::Black => "black",
@@ -35,35 +37,29 @@ impl ColorName {
     }
 
     /// Get the static string slice of this color name.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str<S: AsRef<str>>(s: S) -> Option<ColorName> {
         let s = s.as_ref().to_lowercase();
 
         match s.as_str() {
-            "white" => {
-                Some(ColorName::White)
-            }
-            "black" => {
-                Some(ColorName::Black)
-            }
-            "red" => {
-                Some(ColorName::Red)
-            }
-            "green" => {
-                Some(ColorName::Green)
-            }
-            "blue" => {
-                Some(ColorName::Blue)
-            }
-            "yellow" => {
-                Some(ColorName::Yellow)
-            }
-            "cyan" => {
-                Some(ColorName::CYAN)
-            }
-            "magenta" => {
-                Some(ColorName::MAGENTA)
-            }
-            _ => None
+            "white" => Some(ColorName::White),
+            "black" => Some(ColorName::Black),
+            "red" => Some(ColorName::Red),
+            "green" => Some(ColorName::Green),
+            "blue" => Some(ColorName::Blue),
+            "yellow" => Some(ColorName::Yellow),
+            "cyan" => Some(ColorName::CYAN),
+            "magenta" => Some(ColorName::MAGENTA),
+            _ => None,
         }
+    }
+}
+
+impl FromStr for ColorName {
+    type Err = ();
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        ColorName::from_str(s).ok_or_else(|| ())
     }
 }

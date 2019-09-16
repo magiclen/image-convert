@@ -1,4 +1,7 @@
-use crate::{ImageResource, ImageConfig, compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings, starts_ends_with_caseless::EndsWithCaseless};
+use crate::{
+    compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings,
+    starts_ends_with_caseless::EndsWithCaseless, ImageConfig, ImageResource,
+};
 
 #[derive(Debug)]
 struct ICOConfigInner {
@@ -41,11 +44,19 @@ impl ICOConfig {
     ///     sharpen: -1f64,
     /// }
     /// ```
+    #[inline]
     pub fn new() -> ICOConfig {
         ICOConfig {
             size: Vec::with_capacity(1),
             sharpen: -1f64,
         }
+    }
+}
+
+impl Default for ICOConfig {
+    #[inline]
+    fn default() -> Self {
+        ICOConfig::new()
     }
 }
 
@@ -68,7 +79,11 @@ impl ImageConfig for ICOConfigInner {
 }
 
 /// Convert an image to an ICO image.
-pub fn to_ico(output: &mut ImageResource, input: &ImageResource, config: &ICOConfig) -> Result<(), &'static str> {
+pub fn to_ico(
+    output: &mut ImageResource,
+    input: &ImageResource,
+    config: &ICOConfig,
+) -> Result<(), &'static str> {
     let mut icon_dir = ico::IconDir::new(ico::ResourceType::Icon);
 
     let ico_config_inner = ICOConfigInner::from(config);
@@ -89,32 +104,36 @@ pub fn to_ico(output: &mut ImageResource, input: &ImageResource, config: &ICOCon
             {
                 let temp = mw.write_image_blob("RGBA")?;
 
-                let icon_image = ico::IconImage::from_rgba_data(config.width as u32, config.height as u32, temp);
+                let icon_image = ico::IconImage::from_rgba_data(
+                    u32::from(config.width),
+                    u32::from(config.height),
+                    temp,
+                );
 
                 icon_dir.add_entry(ico::IconDirEntry::encode_as_bmp(&icon_image).unwrap());
             }
 
-            loop {
-                if let Some(config) = config_iter.next() {
-                    let (mut mw, vector) = fetch_magic_wand(input, config)?;
+            while let Some(config) = config_iter.next() {
+                let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
-                    if !vector {
-                        return Err("The input image may not be a correct vector.");
-                    }
-
-                    mw.profile_image("*", None)?;
-
-                    mw.set_image_format("RGBA")?;
-                    mw.set_image_depth(8)?;
-
-                    let temp = mw.write_image_blob("RGBA")?;
-
-                    let icon_image = ico::IconImage::from_rgba_data(config.width as u32, config.height as u32, temp);
-
-                    icon_dir.add_entry(ico::IconDirEntry::encode_as_bmp(&icon_image).unwrap());
-                } else {
-                    break;
+                if !vector {
+                    return Err("The input image may not be a correct vector.");
                 }
+
+                mw.profile_image("*", None)?;
+
+                mw.set_image_format("RGBA")?;
+                mw.set_image_depth(8)?;
+
+                let temp = mw.write_image_blob("RGBA")?;
+
+                let icon_image = ico::IconImage::from_rgba_data(
+                    u32::from(config.width),
+                    u32::from(config.height),
+                    temp,
+                );
+
+                icon_dir.add_entry(ico::IconDirEntry::encode_as_bmp(&icon_image).unwrap());
             }
         } else {
             mw.profile_image("*", None)?;
@@ -125,35 +144,41 @@ pub fn to_ico(output: &mut ImageResource, input: &ImageResource, config: &ICOCon
             {
                 let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
 
-                mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
+                mw.resize_image(
+                    width as usize,
+                    height as usize,
+                    bindings::FilterType_LanczosFilter,
+                );
 
                 mw.sharpen_image(0f64, sharpen)?;
 
                 let temp = mw.write_image_blob("RGBA")?;
 
-                let icon_image = ico::IconImage::from_rgba_data(width as u32, height as u32, temp);
+                let icon_image =
+                    ico::IconImage::from_rgba_data(u32::from(width), u32::from(height), temp);
 
                 icon_dir.add_entry(ico::IconDirEntry::encode_as_bmp(&icon_image).unwrap());
             }
 
-            loop {
-                if let Some(config) = config_iter.next() {
-                    let mw = mw.clone();
+            for config in config_iter {
+                let mw = mw.clone();
 
-                    let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
+                let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
 
-                    mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
+                mw.resize_image(
+                    width as usize,
+                    height as usize,
+                    bindings::FilterType_LanczosFilter,
+                );
 
-                    mw.sharpen_image(0f64, sharpen)?;
+                mw.sharpen_image(0f64, sharpen)?;
 
-                    let temp = mw.write_image_blob("RGBA")?;
+                let temp = mw.write_image_blob("RGBA")?;
 
-                    let icon_image = ico::IconImage::from_rgba_data(width as u32, height as u32, temp);
+                let icon_image =
+                    ico::IconImage::from_rgba_data(u32::from(width), u32::from(height), temp);
 
-                    icon_dir.add_entry(ico::IconDirEntry::encode_as_bmp(&icon_image).unwrap());
-                } else {
-                    break;
-                }
+                icon_dir.add_entry(ico::IconDirEntry::encode_as_bmp(&icon_image).unwrap());
             }
         }
     }
@@ -166,15 +191,15 @@ pub fn to_ico(output: &mut ImageResource, input: &ImageResource, config: &ICOCon
 
             let file = match std::fs::File::create(&p) {
                 Ok(f) => f,
-                Err(_) => return Err("Cannot create the icon file.")
+                Err(_) => return Err("Cannot create the icon file."),
             };
 
-            if let Err(_) = icon_dir.write(file) {
+            if icon_dir.write(file).is_err() {
                 return Err("Cannot write the icon file.");
             }
         }
         ImageResource::Data(b) => {
-            if let Err(_) = icon_dir.write(b) {
+            if icon_dir.write(b).is_err() {
                 return Err("Cannot convert to icon data.");
             }
         }

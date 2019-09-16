@@ -2,13 +2,13 @@ extern crate image_convert;
 
 use std::path::Path;
 
-use image_convert::{ImageResource, InterlaceType, JPGConfig, GIFConfig, PNGConfig, WEBPConfig, ICOConfig, GrayRawConfig, PGMConfig, identify, to_jpg, to_gif, to_png, to_webp, to_ico, to_gray_raw, to_pgm};
+use image_convert::{
+    identify, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_webp, GIFConfig,
+    GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig, PGMConfig, PNGConfig,
+    WEBPConfig,
+};
 
-#[cfg(windows)]
-const INPUT_IMAGE_PATH: &'static str = r"tests\data\P1060382.JPG";
-
-#[cfg(not(windows))]
-const INPUT_IMAGE_PATH: &'static str = r"tests/data/P1060382.JPG";
+const INPUT_IMAGE_PATH: &str = r"tests/data/P1060382.JPG";
 
 #[test]
 fn get_identify() {

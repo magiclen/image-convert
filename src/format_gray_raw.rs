@@ -1,4 +1,9 @@
-use crate::{ColorName, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, fetch_magic_wand, magick_rust::{PixelWand, bindings}, starts_ends_with_caseless::EndsWithCaseless};
+use crate::{
+    compute_output_size_sharpen, fetch_magic_wand,
+    magick_rust::{bindings, PixelWand},
+    starts_ends_with_caseless::EndsWithCaseless,
+    ColorName, ImageConfig, ImageResource, InterlaceType,
+};
 
 #[derive(Debug)]
 /// The output config of a RAW image with gray colors.
@@ -20,12 +25,20 @@ impl GrayRawConfig {
     ///     background_color: None,
     /// }
     /// ```
+    #[inline]
     pub fn new() -> GrayRawConfig {
         GrayRawConfig {
             width: 0u16,
             height: 0u16,
             background_color: None,
         }
+    }
+}
+
+impl Default for GrayRawConfig {
+    #[inline]
+    fn default() -> Self {
+        GrayRawConfig::new()
     }
 }
 
@@ -48,7 +61,11 @@ impl ImageConfig for GrayRawConfig {
 }
 
 /// Convert an image to a RAW image with gray colors.
-pub fn to_gray_raw(output: &mut ImageResource, input: &ImageResource, config: &GrayRawConfig) -> Result<(), &'static str> {
+pub fn to_gray_raw(
+    output: &mut ImageResource,
+    input: &ImageResource,
+    config: &GrayRawConfig,
+) -> Result<(), &'static str> {
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if let Some(background_color) = config.background_color {

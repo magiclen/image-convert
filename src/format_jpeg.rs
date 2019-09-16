@@ -1,4 +1,9 @@
-use crate::{ColorName, InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, fetch_magic_wand, magick_rust::{PixelWand, bindings}, starts_ends_with_caseless::EndsWithCaselessMultiple};
+use crate::{
+    compute_output_size_sharpen, fetch_magic_wand,
+    magick_rust::{bindings, PixelWand},
+    starts_ends_with_caseless::EndsWithCaselessMultiple,
+    ColorName, ImageConfig, ImageResource, InterlaceType,
+};
 
 #[derive(Debug)]
 /// The output config of a JPEG image.
@@ -35,6 +40,7 @@ impl JPGConfig {
     ///     ppi: 72f64,
     /// }
     /// ```
+    #[inline]
     pub fn new() -> JPGConfig {
         JPGConfig {
             width: 0u16,
@@ -46,6 +52,13 @@ impl JPGConfig {
             background_color: None,
             ppi: 72f64,
         }
+    }
+}
+
+impl Default for JPGConfig {
+    #[inline]
+    fn default() -> Self {
+        JPGConfig::new()
     }
 }
 
@@ -68,7 +81,11 @@ impl ImageConfig for JPGConfig {
 }
 
 /// Convert an image to a JPEG image.
-pub fn to_jpg(output: &mut ImageResource, input: &ImageResource, config: &JPGConfig) -> Result<(), &'static str> {
+pub fn to_jpg(
+    output: &mut ImageResource,
+    input: &ImageResource,
+    config: &JPGConfig,
+) -> Result<(), &'static str> {
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if let Some(background_color) = config.background_color {
@@ -105,7 +122,7 @@ pub fn to_jpg(output: &mut ImageResource, input: &ImageResource, config: &JPGCon
 
     match output {
         ImageResource::Path(p) => {
-            if !p.ends_with_caseless_ascii_multiple(&[".jpg", ".jpeg"]) {
+            if p.ends_with_caseless_ascii_multiple(&[".jpg", ".jpeg"]).is_none() {
                 return Err("The file extension name is not jpg or jpeg.");
             }
 

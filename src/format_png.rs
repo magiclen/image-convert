@@ -1,4 +1,7 @@
-use crate::{InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings, starts_ends_with_caseless::EndsWithCaseless};
+use crate::{
+    compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings,
+    starts_ends_with_caseless::EndsWithCaseless, ImageConfig, ImageResource, InterlaceType,
+};
 
 #[derive(Debug)]
 /// The output config of a PNG image.
@@ -26,6 +29,7 @@ impl PNGConfig {
     ///     ppi: 72f64,
     /// }
     /// ```
+    #[inline]
     pub fn new() -> PNGConfig {
         PNGConfig {
             width: 0u16,
@@ -34,6 +38,13 @@ impl PNGConfig {
             sharpen: -1f64,
             ppi: 72f64,
         }
+    }
+}
+
+impl Default for PNGConfig {
+    #[inline]
+    fn default() -> Self {
+        PNGConfig::new()
     }
 }
 
@@ -56,7 +67,11 @@ impl ImageConfig for PNGConfig {
 }
 
 /// Convert an image to a PNG image.
-pub fn to_png(output: &mut ImageResource, input: &ImageResource, config: &PNGConfig) -> Result<(), &'static str> {
+pub fn to_png(
+    output: &mut ImageResource,
+    input: &ImageResource,
+    config: &PNGConfig,
+) -> Result<(), &'static str> {
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if !vector {

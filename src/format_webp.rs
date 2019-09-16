@@ -1,4 +1,7 @@
-use crate::{InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings, starts_ends_with_caseless::EndsWithCaseless};
+use crate::{
+    compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings,
+    starts_ends_with_caseless::EndsWithCaseless, ImageConfig, ImageResource, InterlaceType,
+};
 
 #[derive(Debug)]
 /// The output config of a WEBP image.
@@ -16,6 +19,7 @@ pub struct WEBPConfig {
 }
 
 impl WEBPConfig {
+    #[inline]
     pub fn new() -> WEBPConfig {
         WEBPConfig {
             width: 0u16,
@@ -24,6 +28,13 @@ impl WEBPConfig {
             sharpen: -1f64,
             quality: 85u8,
         }
+    }
+}
+
+impl Default for WEBPConfig {
+    #[inline]
+    fn default() -> Self {
+        WEBPConfig::new()
     }
 }
 
@@ -46,7 +57,11 @@ impl ImageConfig for WEBPConfig {
 }
 
 /// Convert an image to a WEBP image.
-pub fn to_webp(output: &mut ImageResource, input: &ImageResource, config: &WEBPConfig) -> Result<(), &'static str> {
+pub fn to_webp(
+    output: &mut ImageResource,
+    input: &ImageResource,
+    config: &WEBPConfig,
+) -> Result<(), &'static str> {
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if !vector {

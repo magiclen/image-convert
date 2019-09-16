@@ -1,4 +1,7 @@
-use crate::{InterlaceType, ImageResource, ImageConfig, compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings, starts_ends_with_caseless::EndsWithCaseless};
+use crate::{
+    compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings,
+    starts_ends_with_caseless::EndsWithCaseless, ImageConfig, ImageResource, InterlaceType,
+};
 
 #[derive(Debug)]
 /// The output config of a GIF image.
@@ -23,6 +26,7 @@ impl GIFConfig {
     ///     sharpen: -1f64,
     /// }
     /// ```
+    #[inline]
     pub fn new() -> GIFConfig {
         GIFConfig {
             width: 0u16,
@@ -30,6 +34,13 @@ impl GIFConfig {
             shrink_only: true,
             sharpen: -1f64,
         }
+    }
+}
+
+impl Default for GIFConfig {
+    #[inline]
+    fn default() -> Self {
+        GIFConfig::new()
     }
 }
 
@@ -52,7 +63,11 @@ impl ImageConfig for GIFConfig {
 }
 
 /// Convert an image to a GIF image.
-pub fn to_gif(output: &mut ImageResource, input: &ImageResource, config: &GIFConfig) -> Result<(), &'static str> {
+pub fn to_gif(
+    output: &mut ImageResource,
+    input: &ImageResource,
+    config: &GIFConfig,
+) -> Result<(), &'static str> {
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if !vector {

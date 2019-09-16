@@ -1,4 +1,4 @@
-use crate::{START_CALL_ONCE, InterlaceType, ImageResource, {magick_rust::MagickWand}};
+use crate::{magick_rust::MagickWand, ImageResource, InterlaceType, START_CALL_ONCE};
 
 /// The resolution of an image.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,12 +32,17 @@ fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, &'static str> {
     Ok(ImageIdentify {
         resolution,
         format,
-        interlace: InterlaceType::from_ordinal(interlace as isize).unwrap_or(InterlaceType::UndefinedInterlace),
+        interlace: InterlaceType::from_ordinal(interlace as isize)
+            .unwrap_or(InterlaceType::UndefinedInterlace),
     })
 }
 
 /// Identify an image. It can also be used for read an image as `MagickWand` instances.
-pub fn identify(output: &mut Option<Option<MagickWand>>, input: &ImageResource) -> Result<ImageIdentify, &'static str> {
+#[allow(clippy::option_option)]
+pub fn identify(
+    output: &mut Option<Option<MagickWand>>,
+    input: &ImageResource,
+) -> Result<ImageIdentify, &'static str> {
     START_CALL_ONCE();
 
     match input {

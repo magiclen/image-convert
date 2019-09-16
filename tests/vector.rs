@@ -2,13 +2,13 @@ extern crate image_convert;
 
 use std::path::Path;
 
-use image_convert::{ImageResource, InterlaceType, JPGConfig, GIFConfig, PNGConfig, WEBPConfig, ICOConfig, GrayRawConfig, PGMConfig, identify, to_jpg, to_gif, to_png, to_webp, to_ico, to_gray_raw, to_pgm};
+use image_convert::{
+    identify, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_webp, GIFConfig,
+    GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig, PGMConfig, PNGConfig,
+    WEBPConfig,
+};
 
-#[cfg(windows)]
-const INPUT_IMAGE_PATH: &'static str = r"tests\data\dropbox.svg";
-
-#[cfg(not(windows))]
-const INPUT_IMAGE_PATH: &'static str = r"tests/data/dropbox.svg";
+const INPUT_IMAGE_PATH: &str = r"tests/data/dropbox.svg";
 
 #[test]
 fn get_identify() {
@@ -66,7 +66,8 @@ fn to_png_file2file() {
 fn to_png_file2file_small() {
     let source_image_path = Path::new(INPUT_IMAGE_PATH);
 
-    let target_image_path = Path::join(source_image_path.parent().unwrap(), "dropbox_small_output.png");
+    let target_image_path =
+        Path::join(source_image_path.parent().unwrap(), "dropbox_small_output.png");
 
     let mut config = PNGConfig::new();
 
