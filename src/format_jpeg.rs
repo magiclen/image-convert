@@ -20,7 +20,7 @@ pub struct JPGConfig {
     pub sharpen: f64,
     /// Use 4:2:0 (chroma quartered) subsampling to reduce the file size.
     pub force_to_chroma_quartered: bool,
-    /// From 0 to 100, the higher the better.
+    /// From 1 to 100, the higher the better.
     pub quality: u8,
     /// The color is used for fill up the alpha background.
     pub background_color: Option<ColorName>,
@@ -123,7 +123,7 @@ pub fn to_jpg(
         mw.set_sampling_factors(&[2f64, 1f64, 1f64])?;
     }
 
-    mw.set_image_compression_quality(config.quality.min(100) as usize)?;
+    mw.set_image_compression_quality(config.quality.min(100).max(1) as usize)?;
 
     mw.set_interlace_scheme(InterlaceType::LineInterlace.ordinal() as bindings::InterlaceType)?;
 
