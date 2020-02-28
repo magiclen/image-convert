@@ -13,7 +13,7 @@ install:
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt update ; fi
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt install libwebp-dev ; fi
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then brew update ; fi
-  - if [ "$TRAVIS_OS_NAME" = "osx" ]; then brew install webp ; fi
+  - if [ "$TRAVIS_OS_NAME" = "osx" ]; then brew list webp || brew install webp ; fi
   - wget http://www.imagemagick.org/download/ImageMagick.tar.gz
   - tar xf ImageMagick.tar.gz
   - mkdir /tmp/ImageMagick-lib
