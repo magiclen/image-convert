@@ -50,7 +50,7 @@ let mut output = ImageResource::from_path(target_image_path);
 to_png(&mut output, &input, &config).unwrap();
 ```
 
-Supported output formats are `JPG`, `PNG`, `GIF`, `WEBP`, `ICO`, `PGM` and `GrayRaw`.
+Supported output formats are `BMP`, `JPG`, `PNG`, `GIF`, `WEBP`, `ICO`, `PGM` and `GrayRaw`.
 
 ## Crates.io
 

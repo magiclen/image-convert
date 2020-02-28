@@ -16,9 +16,9 @@ pub enum ColorName {
     /// #FFFF00
     Yellow,
     /// #00FFFF
-    CYAN,
+    Cyan,
     /// #FF00FF
-    MAGENTA,
+    Magenta,
 }
 
 impl ColorName {
@@ -31,8 +31,8 @@ impl ColorName {
             ColorName::Green => "green",
             ColorName::Blue => "blue",
             ColorName::Yellow => "yellow",
-            ColorName::CYAN => "cyan",
-            ColorName::MAGENTA => "magenta",
+            ColorName::Cyan => "cyan",
+            ColorName::Magenta => "magenta",
         }
     }
 
@@ -48,8 +48,8 @@ impl ColorName {
             "green" => Some(ColorName::Green),
             "blue" => Some(ColorName::Blue),
             "yellow" => Some(ColorName::Yellow),
-            "cyan" => Some(ColorName::CYAN),
-            "magenta" => Some(ColorName::MAGENTA),
+            "cyan" => Some(ColorName::Cyan),
+            "magenta" => Some(ColorName::Magenta),
             _ => None,
         }
     }

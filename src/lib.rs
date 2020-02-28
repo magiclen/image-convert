@@ -48,7 +48,7 @@ let mut output = ImageResource::from_path(target_image_path);
 to_png(&mut output, &input, &config).unwrap();
 ```
 
-Supported output formats are `JPG`, `PNG`, `GIF`, `WEBP`, `ICO`, `PGM` and `GrayRaw`.
+Supported output formats are `BMP`, `JPG`, `PNG`, `GIF`, `WEBP`, `ICO`, `PGM` and `GrayRaw`.
 */
 
 #![allow(clippy::enum_clike_unportable_variant)]
@@ -77,6 +77,7 @@ macro_rules! set_none_background {
 }
 
 mod color_name;
+mod format_bmp;
 mod format_gif;
 mod format_gray_raw;
 mod format_ico;
@@ -89,8 +90,10 @@ mod image_config;
 mod image_resource;
 mod interlace_type;
 
+use std::cmp::Ordering;
 use std::sync::Once;
 
+pub use self::format_bmp::*;
 pub use self::format_gif::*;
 pub use self::format_gray_raw::*;
 pub use self::format_ico::*;
@@ -241,10 +244,10 @@ fn fetch_magic_wand_inner(
                     let tl = te - ts;
                     let l = new_height.len();
 
-                    if l > tl {
-                        e += l - tl;
-                    } else if tl > l {
-                        e -= tl - l;
+                    match l.cmp(&tl) {
+                        Ordering::Greater => e += l - tl,
+                        Ordering::Less => e -= tl - l,
+                        Ordering::Equal => (),
                     }
 
                     reload = true;
