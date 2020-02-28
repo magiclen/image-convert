@@ -4,8 +4,8 @@ use std::path::Path;
 
 use image_convert::{
     identify, to_bmp, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_webp, BMPConfig,
-    GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig, PGMConfig,
-    PNGConfig, WEBPConfig, ColorName
+    ColorName, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig,
+    PGMConfig, PNGConfig, WEBPConfig,
 };
 
 const INPUT_IMAGE_PATH: &str = r"tests/data/dropbox.svg";
@@ -35,7 +35,7 @@ fn to_bmp_file2file() {
     config.width = 1920;
     config.height = 1920;
     config.shrink_only = false;
-    config.background_color  = Some(ColorName::Green);
+    config.background_color = Some(ColorName::Green);
 
     let input = ImageResource::from_path(source_image_path);
 

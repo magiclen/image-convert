@@ -6,6 +6,8 @@ use crate::{
 #[derive(Debug)]
 /// The output config of a GIF image.
 pub struct GIFConfig {
+    /// Remain the profile stored in the input image.
+    pub remain_profile: bool,
     /// The width of the output image. `0` means the original width.
     pub width: u16,
     /// The height of the output image. `0` means the original height.
@@ -29,6 +31,7 @@ impl GIFConfig {
     #[inline]
     pub fn new() -> GIFConfig {
         GIFConfig {
+            remain_profile: false,
             width: 0u16,
             height: 0u16,
             shrink_only: true,
@@ -45,18 +48,27 @@ impl Default for GIFConfig {
 }
 
 impl ImageConfig for GIFConfig {
+    #[inline]
+    fn is_remain_profile(&self) -> bool {
+        self.remain_profile
+    }
+
+    #[inline]
     fn get_width(&self) -> u16 {
         self.width
     }
 
+    #[inline]
     fn get_height(&self) -> u16 {
         self.height
     }
 
+    #[inline]
     fn get_sharpen(&self) -> f64 {
         self.sharpen
     }
 
+    #[inline]
     fn is_shrink_only(&self) -> bool {
         self.shrink_only
     }
@@ -78,7 +90,9 @@ pub fn to_gif(
         mw.sharpen_image(0f64, sharpen)?;
     }
 
-    mw.profile_image("*", None)?;
+    if !config.remain_profile {
+        mw.profile_image("*", None)?;
+    }
 
     mw.set_image_compression_quality(100)?;
 

@@ -5,6 +5,7 @@ use crate::{
 
 #[derive(Debug)]
 struct ICOConfigInner {
+    remain_profile: bool,
     width: u16,
     height: u16,
     shrink_only: bool,
@@ -17,6 +18,7 @@ impl ICOConfigInner {
 
         for &(width, height) in &config.size {
             output.push(ICOConfigInner {
+                remain_profile: config.remain_profile,
                 width,
                 height,
                 shrink_only: false,
@@ -30,6 +32,8 @@ impl ICOConfigInner {
 
 /// The output config of an ICO image.
 pub struct ICOConfig {
+    /// Remain the profile stored in the input image.
+    pub remain_profile: bool,
     /// The size of the output image, made up of a width and a height. `0` means the original width or the original height.
     pub size: Vec<(u16, u16)>,
     /// The higher the sharper. A negative value means auto adjustment.
@@ -47,6 +51,7 @@ impl ICOConfig {
     #[inline]
     pub fn new() -> ICOConfig {
         ICOConfig {
+            remain_profile: false,
             size: Vec::with_capacity(1),
             sharpen: -1f64,
         }
@@ -61,18 +66,27 @@ impl Default for ICOConfig {
 }
 
 impl ImageConfig for ICOConfigInner {
+    #[inline]
+    fn is_remain_profile(&self) -> bool {
+        self.remain_profile
+    }
+
+    #[inline]
     fn get_width(&self) -> u16 {
         self.width
     }
 
+    #[inline]
     fn get_height(&self) -> u16 {
         self.height
     }
 
+    #[inline]
     fn get_sharpen(&self) -> f64 {
         self.sharpen
     }
 
+    #[inline]
     fn is_shrink_only(&self) -> bool {
         self.shrink_only
     }
@@ -96,7 +110,9 @@ pub fn to_ico(
         let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
         if vector {
-            mw.profile_image("*", None)?;
+            if !config.remain_profile {
+                mw.profile_image("*", None)?;
+            }
 
             mw.set_image_format("RGBA")?;
             mw.set_image_depth(8)?;
