@@ -19,7 +19,7 @@ pub struct GrayRawConfig {
 }
 
 impl GrayRawConfig {
-    /// Create a `JPGConfig` instance with default values.
+    /// Create a `GrayRawConfig` instance with default values.
     /// ```rust,ignore
     /// GrayRawConfig {
     ///     remain_profile: false,

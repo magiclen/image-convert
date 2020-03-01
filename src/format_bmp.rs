@@ -20,6 +20,8 @@ pub struct BMPConfig {
     pub sharpen: f64,
     /// The color is used for fill up the alpha background.
     pub background_color: Option<ColorName>,
+    /// Pixels per inch.
+    pub ppi: Option<(f64, f64)>,
 }
 
 impl BMPConfig {
@@ -32,6 +34,7 @@ impl BMPConfig {
     ///     shrink_only: true,
     ///     sharpen: -1f64,
     ///     background_color: None,
+    /// ppi: None,
     /// }
     /// ```
     #[inline]
@@ -43,6 +46,7 @@ impl BMPConfig {
             shrink_only: true,
             sharpen: -1f64,
             background_color: None,
+            ppi: None,
         }
     }
 }
@@ -113,6 +117,11 @@ pub fn to_bmp(
     mw.set_interlace_scheme(InterlaceType::LineInterlace.ordinal() as bindings::InterlaceType)?;
 
     mw.set_image_format("BMP")?;
+
+    if let Some((x, y)) = config.ppi {
+        mw.set_image_resolution(x.max(0f64), y.max(0f64))?;
+        mw.set_image_units(bindings::ResolutionType_PixelsPerInchResolution)?;
+    }
 
     match output {
         ImageResource::Path(p) => {
