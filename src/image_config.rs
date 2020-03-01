@@ -48,9 +48,9 @@ pub(crate) fn compute_output_size_sharpen(
     let hr = original_height_f64 / height_f64;
 
     if wr >= hr {
-        height = (width_f64 / ratio) as u16;
+        height = (width_f64 / ratio).round() as u16;
     } else {
-        width = (height_f64 * ratio) as u16;
+        width = (height_f64 * ratio).round() as u16;
     }
 
     let mut adjusted_sharpen = config.get_sharpen();
@@ -116,9 +116,9 @@ pub(crate) fn compute_output_size_if_different(
     let hr = original_height_f64 / height_f64;
 
     if wr >= hr {
-        height = (width_f64 / ratio) as u16;
+        height = (width_f64 / ratio).round() as u16;
     } else {
-        width = (height_f64 * ratio) as u16;
+        width = (height_f64 * ratio).round() as u16;
     }
 
     Some((width, height))
