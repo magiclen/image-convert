@@ -1,13 +1,13 @@
 use crate::{
     compute_output_size_sharpen, fetch_magic_wand,
     magick_rust::{bindings, PixelWand},
-    starts_ends_with_caseless::EndsWithCaseless,
+    starts_ends_with_caseless::EndsWithCaselessMultiple,
     ColorName, ImageConfig, ImageResource, InterlaceType,
 };
 
 #[derive(Debug)]
-/// The output config of a BMP image.
-pub struct BMPConfig {
+/// The output config of a TIFF image.
+pub struct TIFFConfig {
     /// Remain the profile stored in the input image.
     pub remain_profile: bool,
     /// The width of the output image. `0` means the original width.
@@ -20,41 +20,45 @@ pub struct BMPConfig {
     pub sharpen: f64,
     /// The color is used for fill up the alpha background.
     pub background_color: Option<ColorName>,
+    /// Pixels per inch.
+    pub ppi: Option<(f64, f64)>,
 }
 
-impl BMPConfig {
-    /// Create a `BMPConfig` instance with default values.
+impl TIFFConfig {
+    /// Create a `TIFFConfig` instance with default values.
     /// ```rust,ignore
-    /// BMPConfig {
+    /// TIFFConfig {
     ///     remain_profile: false,
     ///     width: 0u16,
     ///     height: 0u16,
     ///     shrink_only: true,
     ///     sharpen: -1f64,
     ///     background_color: None,
+    ///     ppi: None,
     /// }
     /// ```
     #[inline]
-    pub fn new() -> BMPConfig {
-        BMPConfig {
+    pub fn new() -> TIFFConfig {
+        TIFFConfig {
             remain_profile: false,
             width: 0u16,
             height: 0u16,
             shrink_only: true,
             sharpen: -1f64,
             background_color: None,
+            ppi: None,
         }
     }
 }
 
-impl Default for BMPConfig {
+impl Default for TIFFConfig {
     #[inline]
     fn default() -> Self {
-        BMPConfig::new()
+        TIFFConfig::new()
     }
 }
 
-impl ImageConfig for BMPConfig {
+impl ImageConfig for TIFFConfig {
     #[inline]
     fn is_remain_profile(&self) -> bool {
         self.remain_profile
@@ -81,11 +85,11 @@ impl ImageConfig for BMPConfig {
     }
 }
 
-/// Convert an image to a BMP image.
-pub fn to_bmp(
+/// Convert an image to a TIFF image.
+pub fn to_tiff(
     output: &mut ImageResource,
     input: &ImageResource,
-    config: &BMPConfig,
+    config: &TIFFConfig,
 ) -> Result<(), &'static str> {
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
@@ -112,18 +116,23 @@ pub fn to_bmp(
 
     mw.set_interlace_scheme(InterlaceType::LineInterlace.ordinal() as bindings::InterlaceType)?;
 
-    mw.set_image_format("BMP")?;
+    mw.set_image_format("tiff")?;
+
+    if let Some((x, y)) = config.ppi {
+        mw.set_image_resolution(x.max(0f64), y.max(0f64))?;
+        mw.set_image_units(bindings::ResolutionType_PixelsPerInchResolution)?;
+    }
 
     match output {
         ImageResource::Path(p) => {
-            if !p.ends_with_caseless_ascii(".bmp") {
-                return Err("The file extension name is not bmp.");
+            if p.ends_with_caseless_ascii_multiple(&[".tif", ".tiff"]).is_none() {
+                return Err("The file extension name is not tif or tiff.");
             }
 
             mw.write_image(p.as_str())?;
         }
         ImageResource::Data(b) => {
-            let mut temp = mw.write_image_blob("BMP")?;
+            let mut temp = mw.write_image_blob("TIFF")?;
             b.append(&mut temp);
         }
         ImageResource::MagickWand(mw_2) => {

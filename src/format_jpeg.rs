@@ -25,13 +25,14 @@ pub struct JPGConfig {
     /// The color is used for fill up the alpha background.
     pub background_color: Option<ColorName>,
     /// Pixels per inch.
-    pub ppi: f64,
+    pub ppi: Option<(f64, f64)>,
 }
 
 impl JPGConfig {
     /// Create a `JPGConfig` instance with default values.
     /// ```rust,ignore
     /// JPGConfig {
+    ///     remain_profile: false,
     ///     width: 0u16,
     ///     height: 0u16,
     ///     shrink_only: true,
@@ -39,7 +40,7 @@ impl JPGConfig {
     ///     force_to_chroma_quartered: true,
     ///     quality: 85u8,
     ///     background_color: None,
-    ///     ppi: 72f64,
+    ///     ppi: None,
     /// }
     /// ```
     #[inline]
@@ -53,7 +54,7 @@ impl JPGConfig {
             force_to_chroma_quartered: true,
             quality: 85u8,
             background_color: None,
-            ppi: 72f64,
+            ppi: None,
         }
     }
 }
@@ -129,8 +130,8 @@ pub fn to_jpg(
 
     mw.set_image_format("JPEG")?;
 
-    if config.ppi >= 0f64 {
-        mw.set_image_resolution(config.ppi, config.ppi)?;
+    if let Some((x, y)) = config.ppi {
+        mw.set_image_resolution(x.max(0f64), y.max(0f64))?;
         mw.set_image_units(bindings::ResolutionType_PixelsPerInchResolution)?;
     }
 

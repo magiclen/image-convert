@@ -21,6 +21,17 @@ pub struct WEBPConfig {
 }
 
 impl WEBPConfig {
+    /// Create a `WEBPConfig` instance with default values.
+    /// ```rust,ignore
+    /// WEBPConfig {
+    ///     remain_profile: false,
+    ///     width: 0u16,
+    ///     height: 0u16,
+    ///     shrink_only: true,
+    ///     sharpen: -1f64,
+    ///     quality: 85u8,
+    /// }
+    /// ```
     #[inline]
     pub fn new() -> WEBPConfig {
         WEBPConfig {

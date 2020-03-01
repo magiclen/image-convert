@@ -3,9 +3,9 @@ extern crate image_convert;
 use std::path::Path;
 
 use image_convert::{
-    identify, to_bmp, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_webp, BMPConfig,
-    GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig, PGMConfig,
-    PNGConfig, WEBPConfig,
+    identify, to_bmp, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
+    BMPConfig, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig,
+    PGMConfig, PNGConfig, TIFFConfig, WEBPConfig,
 };
 
 const INPUT_IMAGE_PATH: &str = r"tests/data/P1060382.JPG";
@@ -21,6 +21,7 @@ fn get_identify() {
     assert_eq!(4592, id.resolution.width);
     assert_eq!(2584, id.resolution.height);
     assert_eq!("JPEG", id.format);
+    assert_eq!((180.0f64, 180.0f64), id.ppi);
     assert_eq!(InterlaceType::NoInterlace, id.interlace);
 }
 
@@ -90,6 +91,23 @@ fn to_gif_file2file() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_gif(&mut output, &input, &config).unwrap();
+}
+
+#[test]
+fn to_tiff_file2file() {
+    let source_image_path = Path::new(INPUT_IMAGE_PATH);
+
+    let target_image_path = Path::join(source_image_path.parent().unwrap(), "P1060382_output.tif");
+
+    let mut config = TIFFConfig::new();
+
+    config.width = 1920;
+
+    let input = ImageResource::from_path(source_image_path);
+
+    let mut output = ImageResource::from_path(target_image_path);
+
+    to_tiff(&mut output, &input, &config).unwrap();
 }
 
 #[test]

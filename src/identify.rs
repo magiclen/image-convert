@@ -13,6 +13,7 @@ pub struct ImageIdentify {
     pub resolution: Resolution,
     pub format: String,
     pub interlace: InterlaceType,
+    pub ppi: (f64, f64),
 }
 
 fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, &'static str> {
@@ -20,20 +21,23 @@ fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, &'static str> {
 
     let height = mw.get_image_height() as u32;
 
-    let interlace = mw.get_image_interlace_scheme();
-
-    let format = mw.get_image_format()?;
-
     let resolution = Resolution {
         width,
         height,
     };
+
+    let format = mw.get_image_format()?;
+
+    let interlace = mw.get_image_interlace_scheme();
+
+    let ppi = mw.get_image_resolution()?;
 
     Ok(ImageIdentify {
         resolution,
         format,
         interlace: InterlaceType::from_ordinal(interlace as isize)
             .unwrap_or(InterlaceType::UndefinedInterlace),
+        ppi,
     })
 }
 

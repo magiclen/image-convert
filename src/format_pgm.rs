@@ -26,6 +26,7 @@ impl PGMConfig {
     /// Create a `PGMConfig` instance with default values.
     /// ```rust,ignore
     /// PGMConfig {
+    ///     remain_profile: false,
     ///     width: 0u16,
     ///     height: 0u16,
     ///     shrink_only: true,

@@ -44,6 +44,7 @@ impl ICOConfig {
     /// Create a `ICOConfig` instance with default values.
     /// ```rust,ignore
     /// ICOConfig {
+    ///     remain_profile: false,
     ///     size: Vec::with_capacity(1),
     ///     sharpen: -1f64,
     /// }

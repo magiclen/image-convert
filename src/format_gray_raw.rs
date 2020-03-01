@@ -22,6 +22,7 @@ impl GrayRawConfig {
     /// Create a `JPGConfig` instance with default values.
     /// ```rust,ignore
     /// GrayRawConfig {
+    ///     remain_profile: false,
     ///     width: 0u16,
     ///     height: 0u16,
     ///     background_color: None,

@@ -22,6 +22,7 @@ impl GIFConfig {
     /// Create a `GIFConfig` instance with default values.
     /// ```rust,ignore
     /// GIFConfig {
+    ///     remain_profile: false,
     ///     width: 0u16,
     ///     height: 0u16,
     ///     shrink_only: true,

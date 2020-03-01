@@ -17,18 +17,19 @@ pub struct PNGConfig {
     /// The higher the sharper. A negative value means auto adjustment.
     pub sharpen: f64,
     /// Pixels per inch.
-    pub ppi: f64,
+    pub ppi: Option<(f64, f64)>,
 }
 
 impl PNGConfig {
     /// Create a `PNGConfig` instance with default values.
     /// ```rust,ignore
     /// PNGConfig {
+    ///     remain_profile: false,
     ///     width: 0u16,
     ///     height: 0u16,
     ///     shrink_only: true,
     ///     sharpen: -1f64,
-    ///     ppi: 72f64,
+    ///     ppi: None,
     /// }
     /// ```
     #[inline]
@@ -39,7 +40,7 @@ impl PNGConfig {
             height: 0u16,
             shrink_only: true,
             sharpen: -1f64,
-            ppi: 72f64,
+            ppi: None,
         }
     }
 }
@@ -104,8 +105,8 @@ pub fn to_png(
 
     mw.set_image_format("PNG")?;
 
-    if config.ppi >= 0f64 {
-        mw.set_image_resolution(config.ppi, config.ppi)?;
+    if let Some((x, y)) = config.ppi {
+        mw.set_image_resolution(x.max(0f64), y.max(0f64))?;
         mw.set_image_units(bindings::ResolutionType_PixelsPerInchResolution)?;
     }
 
