@@ -123,11 +123,11 @@ pub const START_CALL_ONCE: fn() = || {
 };
 
 lazy_static! {
-    static ref RE_SVG: Regex = { Regex::new("(?i)(<svg[\\s\\S]*?>)").unwrap() };
+    static ref RE_SVG: Regex = Regex::new("(?i)(<svg[\\s\\S]*?>)").unwrap();
     static ref RE_WIDTH: Regex =
-        { Regex::new("(?i)([\\s\\S]*?[\\s]width[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap() };
+        Regex::new("(?i)([\\s\\S]*?[\\s]width[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap();
     static ref RE_HEIGHT: Regex =
-        { Regex::new("(?i)([\\s\\S]*?[\\s]height[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap() };
+        Regex::new("(?i)([\\s\\S]*?[\\s]height[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap();
 }
 
 pub fn fetch_magic_wand(
