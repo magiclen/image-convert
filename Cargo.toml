@@ -1,6 +1,6 @@
 [package]
 name = "image-convert"
-version = "0.9.5"
+version = "0.9.6"
 authors = ["Magic Len <len@magiclen.org>"]
 edition = "2018"
 repository = "https://github.com/magiclen/image-convert"
@@ -19,8 +19,8 @@ branch = "master"
 regex = "1"
 lazy_static = "1"
 starts-ends-with-caseless = "0.5"
-magick_rust = "0.12"
-enum-ordinalize = "2.2.1"
+magick_rust = "0.13"
+enum-ordinalize = "3.1"
 ico = "0.1"
 
 [features]
