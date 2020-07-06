@@ -16,7 +16,7 @@ impl ICOConfigInner {
     pub fn from(config: &ICOConfig) -> Vec<ICOConfigInner> {
         let mut output = Vec::new();
 
-        for &(width, height) in &config.size {
+        for (width, height) in config.size.iter().copied() {
             output.push(ICOConfigInner {
                 remain_profile: config.remain_profile,
                 width,
