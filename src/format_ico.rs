@@ -1,6 +1,6 @@
 use crate::{
     compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings,
-    starts_ends_with_caseless::EndsWithCaseless, ImageConfig, ImageResource,
+    str_utils::EndsWithIgnoreAsciiCase, ImageConfig, ImageResource,
 };
 
 #[derive(Debug)]
@@ -202,7 +202,7 @@ pub fn to_ico(
 
     match output {
         ImageResource::Path(p) => {
-            if !p.ends_with_caseless_ascii(".ico") {
+            if !p.ends_with_ignore_ascii_case_with_lowercase(".ico") {
                 return Err("The file extension name is not ico.");
             }
 

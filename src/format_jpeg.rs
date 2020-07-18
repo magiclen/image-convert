@@ -1,7 +1,7 @@
 use crate::{
     compute_output_size_sharpen, fetch_magic_wand,
     magick_rust::{bindings, PixelWand},
-    starts_ends_with_caseless::EndsWithCaselessMultiple,
+    str_utils::EndsWithIgnoreAsciiCaseMultiple,
     ColorName, ImageConfig, ImageResource, InterlaceType,
 };
 
@@ -137,7 +137,7 @@ pub fn to_jpg(
 
     match output {
         ImageResource::Path(p) => {
-            if p.ends_with_caseless_ascii_multiple(&[".jpg", ".jpeg"]).is_none() {
+            if p.ends_with_ignore_ascii_case_with_lowercase_multiple(&[".jpg", ".jpeg"]).is_none() {
                 return Err("The file extension name is not jpg or jpeg.");
             }
 

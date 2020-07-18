@@ -58,7 +58,7 @@ pub extern crate magick_rust;
 extern crate enum_ordinalize;
 extern crate ico;
 extern crate regex;
-extern crate starts_ends_with_caseless;
+extern crate str_utils;
 #[macro_use]
 extern crate lazy_static;
 

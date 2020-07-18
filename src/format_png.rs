@@ -1,6 +1,6 @@
 use crate::{
     compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings,
-    starts_ends_with_caseless::EndsWithCaseless, ImageConfig, ImageResource, InterlaceType,
+    str_utils::EndsWithIgnoreAsciiCase, ImageConfig, ImageResource, InterlaceType,
 };
 
 #[derive(Debug)]
@@ -112,7 +112,7 @@ pub fn to_png(
 
     match output {
         ImageResource::Path(p) => {
-            if !p.ends_with_caseless_ascii(".png") {
+            if !p.ends_with_ignore_ascii_case_with_lowercase(".png") {
                 return Err("The file extension name is not png.");
             }
 

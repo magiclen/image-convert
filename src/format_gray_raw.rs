@@ -1,7 +1,7 @@
 use crate::{
     compute_output_size_sharpen, fetch_magic_wand,
     magick_rust::{bindings, PixelWand},
-    starts_ends_with_caseless::EndsWithCaseless,
+    str_utils::EndsWithIgnoreAsciiCase,
     ColorName, ImageConfig, ImageResource, InterlaceType,
 };
 
@@ -108,7 +108,7 @@ pub fn to_gray_raw(
 
     match output {
         ImageResource::Path(p) => {
-            if !p.ends_with_caseless_ascii(".raw") {
+            if !p.ends_with_ignore_ascii_case_with_lowercase(".raw") {
                 return Err("The file extension name is not raw.");
             }
 
