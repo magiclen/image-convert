@@ -1,6 +1,6 @@
 [package]
 name = "image-convert"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Magic Len <len@magiclen.org>"]
 edition = "2018"
 repository = "https://github.com/magiclen/image-convert"
@@ -10,7 +10,7 @@ categories = ["multimedia::images", "multimedia::encoding"]
 description= "A high level library for image identification, conversion, interlacing and high quality resizing."
 readme = "README.md"
 license = "MIT"
-include = ["src/**/*", "Cargo.toml"]
+include = ["src/**/*", "Cargo.toml", "README.md", "LICENSE"]
 
 [badges.travis-ci]
 repository = "magiclen/image-convert"
