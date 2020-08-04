@@ -54,13 +54,14 @@ Supported output formats are `BMP`, `JPG`, `PNG`, `GIF`, `WEBP`, `ICO`, `PGM` an
 #![allow(clippy::enum_clike_unportable_variant)]
 
 pub extern crate magick_rust;
+
 #[macro_use]
 extern crate enum_ordinalize;
+
 extern crate ico;
+extern crate once_cell;
 extern crate regex;
 extern crate str_utils;
-#[macro_use]
-extern crate lazy_static;
 
 #[cfg(feature = "none-background")]
 macro_rules! set_none_background {
@@ -77,6 +78,7 @@ macro_rules! set_none_background {
 }
 
 mod color_name;
+mod crop;
 mod format_bmp;
 mod format_gif;
 mod format_gray_raw;
@@ -94,23 +96,25 @@ mod interlace_type;
 use std::cmp::Ordering;
 use std::sync::Once;
 
-pub use self::format_bmp::*;
-pub use self::format_gif::*;
-pub use self::format_gray_raw::*;
-pub use self::format_ico::*;
-pub use self::format_jpeg::*;
-pub use self::format_pgm::*;
-pub use self::format_png::*;
-pub use self::format_tiff::*;
-pub use self::format_webp::*;
-pub use self::identify::*;
-pub(crate) use self::image_config::*;
-pub use self::image_resource::*;
 pub use color_name::*;
+pub use crop::*;
+pub use format_bmp::*;
+pub use format_gif::*;
+pub use format_gray_raw::*;
+pub use format_ico::*;
+pub use format_jpeg::*;
+pub use format_pgm::*;
+pub use format_png::*;
+pub use format_tiff::*;
+pub use format_webp::*;
+pub use identify::*;
+pub(crate) use image_config::*;
+pub use image_resource::*;
 pub use interlace_type::InterlaceType;
 
 use magick_rust::{magick_wand_genesis, MagickWand};
 
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 static START: Once = Once::new();
@@ -122,17 +126,15 @@ pub const START_CALL_ONCE: fn() = || {
     });
 };
 
-lazy_static! {
-    static ref RE_SVG: Regex = Regex::new("(?i)(<svg[\\s\\S]*?>)").unwrap();
-    static ref RE_WIDTH: Regex =
-        Regex::new("(?i)([\\s\\S]*?[\\s]width[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap();
-    static ref RE_HEIGHT: Regex =
-        Regex::new("(?i)([\\s\\S]*?[\\s]height[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap();
-}
+static RE_SVG: Lazy<Regex> = Lazy::new(|| Regex::new("(?i)(<svg[\\s\\S]*?>)").unwrap());
+static RE_WIDTH: Lazy<Regex> =
+    Lazy::new(|| Regex::new("(?i)([\\s\\S]*?[\\s]width[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap());
+static RE_HEIGHT: Lazy<Regex> =
+    Lazy::new(|| Regex::new("(?i)([\\s\\S]*?[\\s]height[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap());
 
 pub fn fetch_magic_wand(
     input: &ImageResource,
-    config: &dyn ImageConfig,
+    config: &impl ImageConfig,
 ) -> Result<(MagickWand, bool), &'static str> {
     START_CALL_ONCE();
 
@@ -143,6 +145,10 @@ pub fn fetch_magic_wand(
             set_none_background!(mw);
 
             mw.read_image(p.as_str())?;
+
+            if let Some(crop) = config.get_crop() {
+                handle_crop(&mw, crop)?;
+            }
 
             let format = mw.get_image_format()?;
 
@@ -179,6 +185,10 @@ pub fn fetch_magic_wand(
 
             mw.read_image_blob(b)?;
 
+            if let Some(crop) = config.get_crop() {
+                handle_crop(&mw, crop)?;
+            }
+
             let format = mw.get_image_format()?;
 
             match format.as_str() {
@@ -205,8 +215,50 @@ pub fn fetch_magic_wand(
                 _ => Ok((mw, false)),
             }
         }
-        ImageResource::MagickWand(mw) => Ok((mw.clone(), false)),
+        ImageResource::MagickWand(mw) => {
+            let mw = mw.clone();
+
+            if let Some(crop) = config.get_crop() {
+                handle_crop(&mw, crop)?;
+            }
+
+            Ok((mw, false))
+        }
     }
+}
+
+#[allow(clippy::many_single_char_names)]
+fn handle_crop(mw: &MagickWand, crop: Crop) -> Result<(), &'static str> {
+    match crop {
+        Crop::Center(w, h) => {
+            let r = w / h;
+
+            if r.is_nan() || r.is_infinite() || r == 0f64 {
+                return Err("The ratio of CenterCrop is incorrect.");
+            }
+
+            let original_width = mw.get_image_width();
+            let original_height = mw.get_image_height();
+
+            let original_width_f64 = original_width as f64;
+            let original_height_f64 = original_height as f64;
+
+            let ratio = original_width_f64 / original_height_f64;
+
+            let (new_width, new_height) = if r >= ratio {
+                (original_width, (original_width_f64 / r).round() as usize)
+            } else {
+                ((original_height_f64 * r).round() as usize, original_height)
+            };
+
+            let x = (original_width - new_width) / 2;
+            let y = (original_height - new_height) / 2;
+
+            mw.crop_image(new_width, new_height, x as isize, y as isize)?;
+        }
+    }
+
+    Ok(())
 }
 
 fn fetch_magic_wand_inner(

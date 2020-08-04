@@ -1,6 +1,6 @@
 use crate::{
     compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings,
-    str_utils::EndsWithIgnoreAsciiCase, ImageConfig, ImageResource,
+    str_utils::EndsWithIgnoreAsciiCase, Crop, ImageConfig, ImageResource,
 };
 
 #[derive(Debug)]
@@ -8,6 +8,7 @@ struct ICOConfigInner {
     remain_profile: bool,
     width: u16,
     height: u16,
+    crop: Option<Crop>,
     shrink_only: bool,
     sharpen: f64,
 }
@@ -21,6 +22,7 @@ impl ICOConfigInner {
                 remain_profile: config.remain_profile,
                 width,
                 height,
+                crop: config.crop,
                 shrink_only: false,
                 sharpen: config.sharpen,
             });
@@ -30,12 +32,15 @@ impl ICOConfigInner {
     }
 }
 
+#[derive(Debug)]
 /// The output config of an ICO image.
 pub struct ICOConfig {
     /// Remain the profile stored in the input image.
     pub remain_profile: bool,
     /// The size of the output image, made up of a width and a height. `0` means the original width or the original height.
     pub size: Vec<(u16, u16)>,
+    /// Crop the image.
+    pub crop: Option<Crop>,
     /// The higher the sharper. A negative value means auto adjustment.
     pub sharpen: f64,
 }
@@ -54,6 +59,7 @@ impl ICOConfig {
         ICOConfig {
             remain_profile: false,
             size: Vec::with_capacity(1),
+            crop: None,
             sharpen: -1f64,
         }
     }
@@ -80,6 +86,11 @@ impl ImageConfig for ICOConfigInner {
     #[inline]
     fn get_height(&self) -> u16 {
         self.height
+    }
+
+    #[inline]
+    fn get_crop(&self) -> Option<Crop> {
+        self.crop
     }
 
     #[inline]

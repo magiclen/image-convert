@@ -1,6 +1,6 @@
 use crate::{
     compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings,
-    str_utils::EndsWithIgnoreAsciiCase, ImageConfig, ImageResource, InterlaceType,
+    str_utils::EndsWithIgnoreAsciiCase, Crop, ImageConfig, ImageResource, InterlaceType,
 };
 
 #[derive(Debug)]
@@ -12,6 +12,8 @@ pub struct PNGConfig {
     pub width: u16,
     /// The height of the output image. `0` means the original height.
     pub height: u16,
+    /// Crop the image.
+    pub crop: Option<Crop>,
     /// Only shrink the image, not to enlarge it.
     pub shrink_only: bool,
     /// The higher the sharper. A negative value means auto adjustment.
@@ -38,6 +40,7 @@ impl PNGConfig {
             remain_profile: false,
             width: 0u16,
             height: 0u16,
+            crop: None,
             shrink_only: true,
             sharpen: -1f64,
             ppi: None,
@@ -66,6 +69,11 @@ impl ImageConfig for PNGConfig {
     #[inline]
     fn get_height(&self) -> u16 {
         self.height
+    }
+
+    #[inline]
+    fn get_crop(&self) -> Option<Crop> {
+        self.crop
     }
 
     #[inline]

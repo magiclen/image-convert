@@ -2,7 +2,7 @@ use crate::{
     compute_output_size_sharpen, fetch_magic_wand,
     magick_rust::{bindings, PixelWand},
     str_utils::EndsWithIgnoreAsciiCase,
-    ColorName, ImageConfig, ImageResource, InterlaceType,
+    ColorName, Crop, ImageConfig, ImageResource, InterlaceType,
 };
 
 #[derive(Debug)]
@@ -14,6 +14,8 @@ pub struct GrayRawConfig {
     pub width: u16,
     /// The height of the output image. `0` means the original height.
     pub height: u16,
+    /// Crop the image.
+    pub crop: Option<Crop>,
     /// The color is used for fill up the alpha background.
     pub background_color: Option<ColorName>,
 }
@@ -34,6 +36,7 @@ impl GrayRawConfig {
             remain_profile: false,
             width: 0u16,
             height: 0u16,
+            crop: None,
             background_color: None,
         }
     }
@@ -60,6 +63,11 @@ impl ImageConfig for GrayRawConfig {
     #[inline]
     fn get_height(&self) -> u16 {
         self.height
+    }
+
+    #[inline]
+    fn get_crop(&self) -> Option<Crop> {
+        self.crop
     }
 
     #[inline]

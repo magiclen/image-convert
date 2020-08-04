@@ -1,12 +1,14 @@
 use std::fmt::Debug;
 
 use crate::magick_rust::MagickWand;
+use crate::Crop;
 
 // The general config of an image format.
 pub trait ImageConfig: Debug {
     fn is_remain_profile(&self) -> bool;
     fn get_width(&self) -> u16;
     fn get_height(&self) -> u16;
+    fn get_crop(&self) -> Option<Crop>;
     fn get_sharpen(&self) -> f64;
     fn is_shrink_only(&self) -> bool;
 }
@@ -14,7 +16,7 @@ pub trait ImageConfig: Debug {
 // Compute an appropriate sharpen value for the resized image.
 pub(crate) fn compute_output_size_sharpen(
     mw: &MagickWand,
-    config: &dyn ImageConfig,
+    config: &impl ImageConfig,
 ) -> (u16, u16, f64) {
     let mut width = config.get_width();
     let mut height = config.get_height();
@@ -78,7 +80,7 @@ pub(crate) fn compute_output_size_sharpen(
 // Compute the output size if it is different.
 pub(crate) fn compute_output_size_if_different(
     mw: &MagickWand,
-    config: &dyn ImageConfig,
+    config: &impl ImageConfig,
 ) -> Option<(u16, u16)> {
     let mut width = config.get_width();
     let mut height = config.get_height();
