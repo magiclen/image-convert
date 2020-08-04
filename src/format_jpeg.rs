@@ -37,6 +37,7 @@ impl JPGConfig {
     ///     remain_profile: false,
     ///     width: 0u16,
     ///     height: 0u16,
+    ///     crop: None,
     ///     shrink_only: true,
     ///     sharpen: -1f64,
     ///     force_to_chroma_quartered: true,

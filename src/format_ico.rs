@@ -51,6 +51,7 @@ impl ICOConfig {
     /// ICOConfig {
     ///     remain_profile: false,
     ///     size: Vec::with_capacity(1),
+    ///     crop: None,
     ///     sharpen: -1f64,
     /// }
     /// ```

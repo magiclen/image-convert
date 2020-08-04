@@ -27,6 +27,7 @@ impl GrayRawConfig {
     ///     remain_profile: false,
     ///     width: 0u16,
     ///     height: 0u16,
+    ///     crop: None,
     ///     background_color: None,
     /// }
     /// ```
