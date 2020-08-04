@@ -53,7 +53,11 @@ Supported output formats are `BMP`, `JPG`, `PNG`, `GIF`, `WEBP`, `ICO`, `PGM` an
 
 #![allow(clippy::enum_clike_unportable_variant)]
 
-pub extern crate magick_rust;
+#[cfg(feature = "magick_rust_014")]
+pub extern crate magick_rust_014_dep as magick_rust;
+
+#[cfg(feature = "magick_rust_013")]
+pub extern crate magick_rust_013_dep as magick_rust;
 
 #[macro_use]
 extern crate enum_ordinalize;
