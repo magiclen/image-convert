@@ -60,6 +60,6 @@ impl FromStr for ColorName {
 
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        ColorName::from_str(s).ok_or_else(|| ())
+        ColorName::from_str(s).ok_or(())
     }
 }
