@@ -7,7 +7,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  
+
 jobs:
   tests:
     strategy:
@@ -15,12 +15,34 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
+          - macos-latest
         toolchain:
           - stable
           - nightly
     name: Test ${{ matrix.toolchain }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Install libwebp (Linux)
+        run: |
+          sudo apt update
+          sudo apt install libwebp-dev
+        if: runner.os == 'Linux'
+      - name: Install libwebp (macOS)
+        run: |
+          brew update
+          brew list webp || brew install webp
+        if: runner.os == 'macOS'
+      - name: Install ImageMagick
+        run: |
+          wget http://www.imagemagick.org/download/ImageMagick.tar.gz
+          tar xf ImageMagick.tar.gz
+          mkdir /tmp/ImageMagick-lib
+          cd ImageMagick-*
+          ./configure --enable-hdri --with-webp
+          make
+          sudo make install
+      - run: sudo ldconfig
+        if: runner.os == 'Linux'
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
