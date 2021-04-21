@@ -12,10 +12,6 @@ readme = "README.md"
 license = "MIT"
 include = ["src/**/*", "Cargo.toml", "README.md", "LICENSE"]
 
-[badges.travis-ci]
-repository = "magiclen/image-convert"
-branch = "master"
-
 [dependencies]
 regex = "1"
 once_cell = "1"
