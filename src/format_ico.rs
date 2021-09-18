@@ -142,7 +142,7 @@ pub fn to_ico(
                 icon_dir.add_entry(ico::IconDirEntry::encode_as_bmp(&icon_image).unwrap());
             }
 
-            while let Some(config) = config_iter.next() {
+            for config in config_iter {
                 let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
                 if !vector {
