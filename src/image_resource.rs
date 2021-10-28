@@ -107,3 +107,5 @@ impl ImageResource {
         }
     }
 }
+
+unsafe impl Send for ImageResource {}
