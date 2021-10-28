@@ -108,7 +108,7 @@ pub use format_png::*;
 pub use format_tiff::*;
 pub use format_webp::*;
 pub use identify::*;
-pub(crate) use image_config::*;
+pub use image_config::*;
 pub use image_resource::*;
 pub use interlace_type::InterlaceType;
 

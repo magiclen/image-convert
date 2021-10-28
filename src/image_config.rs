@@ -18,48 +18,23 @@ pub(crate) fn compute_output_size_sharpen(
     mw: &MagickWand,
     config: &impl ImageConfig,
 ) -> (u16, u16, f64) {
-    let mut width = config.get_width();
-    let mut height = config.get_height();
     let original_width = mw.get_image_width() as u16;
     let original_height = mw.get_image_height() as u16;
 
-    if config.is_shrink_only() {
-        if width == 0 || width > original_width {
-            width = original_width
-        }
-        if height == 0 || height > original_height {
-            height = original_height
-        }
-    } else {
-        if width == 0 {
-            width = original_width
-        }
-        if height == 0 {
-            height = original_height
-        }
-    }
-
-    let original_width_f64 = f64::from(original_width);
-    let original_height_f64 = f64::from(original_height);
-    let width_f64 = f64::from(width);
-    let height_f64 = f64::from(height);
-
-    let ratio = original_width_f64 / original_height_f64;
-
-    let wr = original_width_f64 / width_f64;
-    let hr = original_height_f64 / height_f64;
-
-    if wr >= hr {
-        height = (width_f64 / ratio).round() as u16;
-    } else {
-        width = (height_f64 * ratio).round() as u16;
-    }
+    let (width, height) = compute_output_size(
+        config.is_shrink_only(),
+        original_width,
+        original_height,
+        config.get_width(),
+        config.get_height(),
+    )
+    .unwrap_or((original_width, original_height));
 
     let mut adjusted_sharpen = config.get_sharpen();
 
     if adjusted_sharpen < 0f64 {
-        let origin_pixels = original_width_f64 * original_height_f64;
-        let resize_pixels = width_f64 * height_f64;
+        let origin_pixels = original_width as f64 * original_height as f64;
+        let resize_pixels = width as f64 * height as f64;
         let resize_level = (resize_pixels / 5_000_000f64).sqrt();
 
         let m;
@@ -77,45 +52,60 @@ pub(crate) fn compute_output_size_sharpen(
     (width, height, adjusted_sharpen)
 }
 
-// Compute the output size if it is different.
+#[inline]
 pub(crate) fn compute_output_size_if_different(
     mw: &MagickWand,
     config: &impl ImageConfig,
 ) -> Option<(u16, u16)> {
-    let mut width = config.get_width();
-    let mut height = config.get_height();
-    let original_width = mw.get_image_width() as u16;
-    let original_height = mw.get_image_height() as u16;
+    compute_output_size(
+        config.is_shrink_only(),
+        mw.get_image_width() as u16,
+        mw.get_image_height() as u16,
+        config.get_width(),
+        config.get_height(),
+    )
+}
 
-    if config.is_shrink_only() {
-        if width == 0 || width > original_width {
-            width = original_width
+/// Compute the output size. If it returns `None`, the size remains the same.
+pub fn compute_output_size(
+    shrink_only: bool,
+    input_width: u16,
+    input_height: u16,
+    max_width: u16,
+    max_height: u16,
+) -> Option<(u16, u16)> {
+    let mut width = max_width;
+    let mut height = max_height;
+
+    if shrink_only {
+        if width == 0 || width > input_width {
+            width = input_width;
         }
-        if height == 0 || height > original_height {
-            height = original_height
+        if height == 0 || height > input_height {
+            height = input_height;
         }
     } else {
         if width == 0 {
-            width = original_width
+            width = input_width;
         }
         if height == 0 {
-            height = original_height
+            height = input_height;
         }
     }
 
-    if width == original_width && height == original_height {
+    if width == input_width && height == input_height {
         return None;
     }
 
-    let original_width_f64 = f64::from(original_width);
-    let original_height_f64 = f64::from(original_height);
+    let input_width_f64 = f64::from(input_width);
+    let input_height_f64 = f64::from(input_height);
     let width_f64 = f64::from(width);
     let height_f64 = f64::from(height);
 
-    let ratio = original_width_f64 / original_height_f64;
+    let ratio = input_width_f64 / input_height_f64;
 
-    let wr = original_width_f64 / width_f64;
-    let hr = original_height_f64 / height_f64;
+    let wr = input_width_f64 / width_f64;
+    let hr = input_height_f64 / height_f64;
 
     if wr >= hr {
         height = (width_f64 / ratio).round() as u16;

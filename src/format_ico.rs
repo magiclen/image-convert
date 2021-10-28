@@ -223,14 +223,10 @@ pub fn to_ico(
                 Err(_) => return Err("Cannot create the icon file."),
             };
 
-            if icon_dir.write(file).is_err() {
-                return Err("Cannot write the icon file.");
-            }
+            icon_dir.write(file).map_err(|_| "Cannot write the icon file.")?;
         }
         ImageResource::Data(b) => {
-            if icon_dir.write(b).is_err() {
-                return Err("Cannot convert to icon data.");
-            }
+            icon_dir.write(b).map_err(|_| "Cannot convert to icon data.")?;
         }
         ImageResource::MagickWand(_) => {
             return Err("ICO cannot be output to a MagickWand instance.");
