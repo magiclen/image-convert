@@ -27,7 +27,6 @@ jobs:
           sudo apt install libwebp-dev
           wget http://www.imagemagick.org/download/ImageMagick.tar.gz
           tar xf ImageMagick.tar.gz
-          mkdir /tmp/ImageMagick-lib
           cd ImageMagick-*
           ./configure --enable-hdri --with-webp
           make
@@ -68,7 +67,6 @@ jobs:
         run: |
           wget http://www.imagemagick.org/download/ImageMagick.tar.gz
           tar xf ImageMagick.tar.gz
-          mkdir /tmp/ImageMagick-lib
           cd ImageMagick-*
           ./configure --enable-hdri --with-webp
           make
