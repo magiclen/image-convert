@@ -1,8 +1,9 @@
+use magick_rust::{bindings, PixelWand};
+use str_utils::EndsWithIgnoreAsciiCase;
+
 use crate::{
-    compute_output_size_sharpen, fetch_magic_wand,
-    magick_rust::{bindings, PixelWand},
-    str_utils::EndsWithIgnoreAsciiCase,
-    ColorName, Crop, ImageConfig, ImageResource, InterlaceType,
+    compute_output_size_sharpen, fetch_magic_wand, ColorName, Crop, ImageConfig, ImageResource,
+    InterlaceType,
 };
 
 #[derive(Debug)]

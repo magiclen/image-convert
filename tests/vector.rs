@@ -1,5 +1,3 @@
-extern crate image_convert;
-
 use std::path::Path;
 
 use image_convert::{

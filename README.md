@@ -10,8 +10,6 @@ This crate is a high level library using **MagickWand** (ImageMagick) for image 
 Identify an image.
 
 ```rust
-extern crate image_convert;
-
 use image_convert::{ImageResource, InterlaceType, identify};
 
 let input = ImageResource::from_path("tests/data/P1060382.JPG");
@@ -29,8 +27,6 @@ assert_eq!(InterlaceType::NoInterlace, id.interlace);
 Convert an image to a PNG image and also resize it.
 
 ```rust
-extern crate image_convert;
-
 use std::path::Path;
 
 use image_convert::{ImageResource, PNGConfig, to_png};

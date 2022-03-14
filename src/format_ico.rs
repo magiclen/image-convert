@@ -1,7 +1,7 @@
-use crate::{
-    compute_output_size_sharpen, fetch_magic_wand, magick_rust::bindings,
-    str_utils::EndsWithIgnoreAsciiCase, Crop, ImageConfig, ImageResource,
-};
+use magick_rust::bindings;
+use str_utils::EndsWithIgnoreAsciiCase;
+
+use crate::{compute_output_size_sharpen, fetch_magic_wand, Crop, ImageConfig, ImageResource};
 
 #[derive(Debug)]
 struct ICOConfigInner {
