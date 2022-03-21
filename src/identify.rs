@@ -41,6 +41,7 @@ fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, &'static str> {
     })
 }
 
+#[deprecated(since = "0.11.3", note = "please use `identify_ping` or `identify_read` instead")]
 /// Identify an image. It can also be used for read an image as `MagickWand` instances.
 #[allow(clippy::option_option)]
 pub fn identify(
@@ -94,6 +95,81 @@ pub fn identify(
             if let Some(s) = output {
                 s.replace(mw.clone());
             }
+
+            Ok(identify)
+        }
+    }
+}
+
+/// Ping and identify an image.
+pub fn identify_ping(input: &ImageResource) -> Result<ImageIdentify, &'static str> {
+    START_CALL_ONCE();
+
+    match input {
+        ImageResource::Path(p) => {
+            let mw = MagickWand::new();
+
+            mw.ping_image(p.as_str())?;
+
+            let identify = identify_inner(&mw)?;
+
+            Ok(identify)
+        }
+        ImageResource::Data(b) => {
+            let mw = MagickWand::new();
+
+            mw.ping_image_blob(b)?;
+
+            let identify = identify_inner(&mw)?;
+
+            Ok(identify)
+        }
+        ImageResource::MagickWand(mw) => {
+            let identify = identify_inner(mw)?;
+
+            Ok(identify)
+        }
+    }
+}
+
+/// Read and identify an image. It can read an image as `MagickWand` instances.
+pub fn identify_read(
+    output: &mut Option<MagickWand>,
+    input: &ImageResource,
+) -> Result<ImageIdentify, &'static str> {
+    START_CALL_ONCE();
+
+    match input {
+        ImageResource::Path(p) => {
+            let mw = MagickWand::new();
+
+            set_none_background!(mw);
+
+            mw.read_image(p.as_str())?;
+
+            let identify = identify_inner(&mw)?;
+
+            output.replace(mw);
+
+            Ok(identify)
+        }
+        ImageResource::Data(b) => {
+            let mw = MagickWand::new();
+
+            set_none_background!(mw);
+
+            mw.read_image_blob(b)?;
+
+            let identify = identify_inner(&mw)?;
+
+            output.replace(mw);
+
+            Ok(identify)
+        }
+        ImageResource::MagickWand(mw) => {
+            let identify = identify_inner(mw)?;
+
+            output.replace(mw.clone());
 
             Ok(identify)
         }

@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use image_convert::{
-    identify, to_bmp, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
+    identify_ping, to_bmp, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
     BMPConfig, ColorName, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType,
     JPGConfig, PGMConfig, PNGConfig, TIFFConfig, WEBPConfig,
 };
@@ -12,9 +12,7 @@ const INPUT_IMAGE_PATH: &str = r"tests/data/dropbox.svg";
 fn get_identify() {
     let input = ImageResource::from_path(INPUT_IMAGE_PATH);
 
-    let mut output = None;
-
-    let id = identify(&mut output, &input).unwrap();
+    let id = identify_ping(&input).unwrap();
 
     assert_eq!(512, id.resolution.width);
     assert_eq!(512, id.resolution.height);
