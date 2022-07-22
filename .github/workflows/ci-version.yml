@@ -38,7 +38,7 @@ jobs:
           tar xf ImageMagick.tar.gz
           cd ImageMagick-*
           ./configure --enable-hdri --with-webp
-          make
+          make -j$(nproc)
           sudo make install
       - run: sudo ldconfig
         if: runner.os == 'Linux'
