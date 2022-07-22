@@ -34,7 +34,7 @@ jobs:
         if: runner.os == 'macOS'
       - name: Install ImageMagick
         run: |
-          wget http://www.imagemagick.org/download/ImageMagick.tar.gz
+          wget https://imagemagick.org/archive/ImageMagick.tar.gz
           tar xf ImageMagick.tar.gz
           cd ImageMagick-*
           ./configure --enable-hdri --with-webp
