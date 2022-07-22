@@ -1,4 +1,4 @@
-use magick_rust::bindings;
+use magick_rust::{bindings, MagickError};
 use str_utils::EndsWithIgnoreAsciiCase;
 
 use crate::{
@@ -95,7 +95,7 @@ pub fn to_webp(
     output: &mut ImageResource,
     input: &ImageResource,
     config: &WEBPConfig,
-) -> Result<(), &'static str> {
+) -> Result<(), MagickError> {
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if !vector {
@@ -119,7 +119,7 @@ pub fn to_webp(
     match output {
         ImageResource::Path(p) => {
             if !p.ends_with_ignore_ascii_case_with_lowercase(".webp") {
-                return Err("The file extension name is not webp.");
+                return Err("The file extension name is not webp.".into());
             }
 
             mw.write_image(p.as_str())?;

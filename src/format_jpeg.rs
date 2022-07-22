@@ -1,4 +1,4 @@
-use magick_rust::{bindings, PixelWand};
+use magick_rust::{bindings, MagickError, PixelWand};
 use str_utils::EndsWithIgnoreAsciiCaseMultiple;
 
 use crate::{
@@ -108,7 +108,7 @@ pub fn to_jpg(
     output: &mut ImageResource,
     input: &ImageResource,
     config: &JPGConfig,
-) -> Result<(), &'static str> {
+) -> Result<(), MagickError> {
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if let Some(background_color) = config.background_color {
@@ -148,7 +148,7 @@ pub fn to_jpg(
     match output {
         ImageResource::Path(p) => {
             if p.ends_with_ignore_ascii_case_with_lowercase_multiple(&[".jpg", ".jpeg"]).is_none() {
-                return Err("The file extension name is not jpg or jpeg.");
+                return Err("The file extension name is not jpg or jpeg.".into());
             }
 
             mw.write_image(p.as_str())?;

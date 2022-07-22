@@ -54,6 +54,8 @@ pub extern crate magick_rust;
 #[macro_use]
 extern crate enum_ordinalize;
 
+pub use magick_rust::MagickError;
+
 #[cfg(feature = "none-background")]
 macro_rules! set_none_background {
     ($mw:expr) => {{
@@ -126,7 +128,7 @@ static RE_HEIGHT: Lazy<Regex> =
 pub fn fetch_magic_wand(
     input: &ImageResource,
     config: &impl ImageConfig,
-) -> Result<(MagickWand, bool), &'static str> {
+) -> Result<(MagickWand, bool), MagickError> {
     START_CALL_ONCE();
 
     match input {
@@ -219,13 +221,13 @@ pub fn fetch_magic_wand(
 }
 
 #[allow(clippy::many_single_char_names)]
-fn handle_crop(mw: &MagickWand, crop: Crop) -> Result<(), &'static str> {
+fn handle_crop(mw: &MagickWand, crop: Crop) -> Result<(), MagickError> {
     match crop {
         Crop::Center(w, h) => {
             let r = w / h;
 
             if r.is_nan() || r.is_infinite() || r == 0f64 {
-                return Err("The ratio of CenterCrop is incorrect.");
+                return Err("The ratio of CenterCrop is incorrect.".into());
             }
 
             let original_width = mw.get_image_width();
@@ -257,7 +259,7 @@ fn fetch_magic_wand_inner(
     new_width: u16,
     new_height: u16,
     mut svg: String,
-) -> Result<(MagickWand, bool), &'static str> {
+) -> Result<(MagickWand, bool), MagickError> {
     let result = match crate::RE_SVG.captures(&svg) {
         Some(captures) => {
             let target = captures.get(1).unwrap();

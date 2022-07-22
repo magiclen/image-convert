@@ -1,4 +1,4 @@
-use magick_rust::{bindings, PixelWand};
+use magick_rust::{bindings, MagickError, PixelWand};
 use str_utils::EndsWithIgnoreAsciiCase;
 
 use crate::{
@@ -100,7 +100,7 @@ pub fn to_bmp(
     output: &mut ImageResource,
     input: &ImageResource,
     config: &BMPConfig,
-) -> Result<(), &'static str> {
+) -> Result<(), MagickError> {
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if let Some(background_color) = config.background_color {
@@ -136,7 +136,7 @@ pub fn to_bmp(
     match output {
         ImageResource::Path(p) => {
             if !p.ends_with_ignore_ascii_case_with_lowercase(".bmp") {
-                return Err("The file extension name is not bmp.");
+                return Err("The file extension name is not bmp.".into());
             }
 
             mw.write_image(p.as_str())?;

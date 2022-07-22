@@ -1,4 +1,4 @@
-use crate::{magick_rust::MagickWand, ImageResource, InterlaceType, START_CALL_ONCE};
+use crate::{magick_rust::MagickWand, ImageResource, InterlaceType, MagickError, START_CALL_ONCE};
 
 /// The resolution of an image.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,7 +16,7 @@ pub struct ImageIdentify {
     pub ppi: (f64, f64),
 }
 
-fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, &'static str> {
+fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, MagickError> {
     let width = mw.get_image_width() as u32;
 
     let height = mw.get_image_height() as u32;
@@ -47,7 +47,7 @@ fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, &'static str> {
 pub fn identify(
     output: &mut Option<Option<MagickWand>>,
     input: &ImageResource,
-) -> Result<ImageIdentify, &'static str> {
+) -> Result<ImageIdentify, MagickError> {
     START_CALL_ONCE();
 
     match input {
@@ -102,7 +102,7 @@ pub fn identify(
 }
 
 /// Ping and identify an image.
-pub fn identify_ping(input: &ImageResource) -> Result<ImageIdentify, &'static str> {
+pub fn identify_ping(input: &ImageResource) -> Result<ImageIdentify, MagickError> {
     START_CALL_ONCE();
 
     match input {
@@ -136,7 +136,7 @@ pub fn identify_ping(input: &ImageResource) -> Result<ImageIdentify, &'static st
 pub fn identify_read(
     output: &mut Option<MagickWand>,
     input: &ImageResource,
-) -> Result<ImageIdentify, &'static str> {
+) -> Result<ImageIdentify, MagickError> {
     START_CALL_ONCE();
 
     match input {

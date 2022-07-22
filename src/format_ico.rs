@@ -1,4 +1,4 @@
-use magick_rust::bindings;
+use magick_rust::{bindings, MagickError};
 use str_utils::EndsWithIgnoreAsciiCase;
 
 use crate::{compute_output_size_sharpen, fetch_magic_wand, Crop, ImageConfig, ImageResource};
@@ -110,7 +110,7 @@ pub fn to_ico(
     output: &mut ImageResource,
     input: &ImageResource,
     config: &ICOConfig,
-) -> Result<(), &'static str> {
+) -> Result<(), MagickError> {
     let mut icon_dir = ico::IconDir::new(ico::ResourceType::Icon);
 
     let ico_config_inner = ICOConfigInner::from(config);
@@ -146,7 +146,7 @@ pub fn to_ico(
                 let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
                 if !vector {
-                    return Err("The input image may not be a correct vector.");
+                    return Err("The input image may not be a correct vector.".into());
                 }
 
                 mw.profile_image("*", None)?;
@@ -215,12 +215,12 @@ pub fn to_ico(
     match output {
         ImageResource::Path(p) => {
             if !p.ends_with_ignore_ascii_case_with_lowercase(".ico") {
-                return Err("The file extension name is not ico.");
+                return Err("The file extension name is not ico.".into());
             }
 
             let file = match std::fs::File::create(&p) {
                 Ok(f) => f,
-                Err(_) => return Err("Cannot create the icon file."),
+                Err(_) => return Err("Cannot create the icon file.".into()),
             };
 
             icon_dir.write(file).map_err(|_| "Cannot write the icon file.")?;
@@ -229,7 +229,7 @@ pub fn to_ico(
             icon_dir.write(b).map_err(|_| "Cannot convert to icon data.")?;
         }
         ImageResource::MagickWand(_) => {
-            return Err("ICO cannot be output to a MagickWand instance.");
+            return Err("ICO cannot be output to a MagickWand instance.".into());
         }
     }
 

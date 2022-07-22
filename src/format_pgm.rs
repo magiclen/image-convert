@@ -1,4 +1,4 @@
-use magick_rust::{bindings, PixelWand};
+use magick_rust::{bindings, MagickError, PixelWand};
 use str_utils::EndsWithIgnoreAsciiCase;
 
 use crate::{
@@ -95,7 +95,7 @@ pub fn to_pgm(
     output: &mut ImageResource,
     input: &ImageResource,
     config: &PGMConfig,
-) -> Result<(), &'static str> {
+) -> Result<(), MagickError> {
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if let Some(background_color) = config.background_color {
@@ -122,7 +122,7 @@ pub fn to_pgm(
     match output {
         ImageResource::Path(p) => {
             if !p.ends_with_ignore_ascii_case_with_lowercase(".pgm") {
-                return Err("The file extension name is not pgm.");
+                return Err("The file extension name is not pgm.".into());
             }
 
             mw.write_image(p.as_str())?;

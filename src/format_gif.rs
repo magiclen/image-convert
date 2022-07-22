@@ -1,4 +1,4 @@
-use magick_rust::bindings;
+use magick_rust::{bindings, MagickError};
 use str_utils::EndsWithIgnoreAsciiCase;
 
 use crate::{
@@ -91,7 +91,7 @@ pub fn to_gif(
     output: &mut ImageResource,
     input: &ImageResource,
     config: &GIFConfig,
-) -> Result<(), &'static str> {
+) -> Result<(), MagickError> {
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if !vector {
@@ -115,7 +115,7 @@ pub fn to_gif(
     match output {
         ImageResource::Path(p) => {
             if !p.ends_with_ignore_ascii_case_with_lowercase(".gif") {
-                return Err("The file extension name is not gif.");
+                return Err("The file extension name is not gif.".into());
             }
 
             mw.write_image(p.as_str())?;
