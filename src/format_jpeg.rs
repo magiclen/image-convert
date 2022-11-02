@@ -134,7 +134,7 @@ pub fn to_jpg(
         mw.set_sampling_factors(&[2f64, 1f64, 1f64])?;
     }
 
-    mw.set_image_compression_quality(config.quality.min(100).max(1) as usize)?;
+    mw.set_image_compression_quality(config.quality.clamp(1, 100) as usize)?;
 
     mw.set_interlace_scheme(InterlaceType::LineInterlace.ordinal() as bindings::InterlaceType)?;
 
