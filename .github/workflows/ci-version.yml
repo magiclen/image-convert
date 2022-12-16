@@ -37,12 +37,12 @@ jobs:
           wget https://imagemagick.org/archive/ImageMagick.tar.gz
           tar xf ImageMagick.tar.gz
           cd ImageMagick-*
-          ./configure --enable-hdri --with-webp
+          ./configure --enable-hdri
           make -j$(nproc)
           sudo make install
       - run: sudo ldconfig
         if: runner.os == 'Linux'
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal

@@ -269,8 +269,8 @@ fn fetch_magic_wand_inner(
 
             let mut reload = false;
 
-            let new_width = format!("{}px", new_width);
-            let new_height = format!("{}px", new_height);
+            let new_width = format!("{new_width}px");
+            let new_height = format!("{new_height}px");
 
             let t = match crate::RE_WIDTH.captures(&svg[s..e]) {
                 Some(captures) => {
