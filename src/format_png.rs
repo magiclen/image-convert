@@ -11,17 +11,17 @@ pub struct PNGConfig {
     /// Remain the profile stored in the input image.
     pub remain_profile: bool,
     /// The width of the output image. `0` means the original width.
-    pub width: u16,
+    pub width:          u16,
     /// The height of the output image. `0` means the original height.
-    pub height: u16,
+    pub height:         u16,
     /// Crop the image.
-    pub crop: Option<Crop>,
+    pub crop:           Option<Crop>,
     /// Only shrink the image, not to enlarge it.
-    pub shrink_only: bool,
+    pub shrink_only:    bool,
     /// The higher the sharper. A negative value means auto adjustment.
-    pub sharpen: f64,
+    pub sharpen:        f64,
     /// Pixels per inch.
-    pub ppi: Option<(f64, f64)>,
+    pub ppi:            Option<(f64, f64)>,
 }
 
 impl PNGConfig {
@@ -41,12 +41,12 @@ impl PNGConfig {
     pub fn new() -> PNGConfig {
         PNGConfig {
             remain_profile: false,
-            width: 0u16,
-            height: 0u16,
-            crop: None,
-            shrink_only: true,
-            sharpen: -1f64,
-            ppi: None,
+            width:          0u16,
+            height:         0u16,
+            crop:           None,
+            shrink_only:    true,
+            sharpen:        -1f64,
+            ppi:            None,
         }
     }
 }
@@ -128,14 +128,14 @@ pub fn to_png(
             }
 
             mw.write_image(p.as_str())?;
-        }
+        },
         ImageResource::Data(b) => {
             let mut temp = mw.write_image_blob("PNG")?;
             b.append(&mut temp);
-        }
+        },
         ImageResource::MagickWand(mw_2) => {
             *mw_2 = mw;
-        }
+        },
     }
 
     Ok(())

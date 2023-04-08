@@ -11,17 +11,17 @@ pub struct WEBPConfig {
     /// Remain the profile stored in the input image.
     pub remain_profile: bool,
     /// The width of the output image. `0` means the original width.
-    pub width: u16,
+    pub width:          u16,
     /// The height of the output image. `0` means the original height.
-    pub height: u16,
+    pub height:         u16,
     /// Crop the image.
-    pub crop: Option<Crop>,
+    pub crop:           Option<Crop>,
     /// Only shrink the image, not to enlarge it.
-    pub shrink_only: bool,
+    pub shrink_only:    bool,
     /// The higher the sharper. A negative value means auto adjustment.
-    pub sharpen: f64,
+    pub sharpen:        f64,
     /// From 0 to 100, the higher the better.
-    pub quality: u8,
+    pub quality:        u8,
 }
 
 impl WEBPConfig {
@@ -41,12 +41,12 @@ impl WEBPConfig {
     pub fn new() -> WEBPConfig {
         WEBPConfig {
             remain_profile: false,
-            width: 0u16,
-            height: 0u16,
-            crop: None,
-            shrink_only: true,
-            sharpen: -1f64,
-            quality: 85u8,
+            width:          0u16,
+            height:         0u16,
+            crop:           None,
+            shrink_only:    true,
+            sharpen:        -1f64,
+            quality:        85u8,
         }
     }
 }
@@ -123,14 +123,14 @@ pub fn to_webp(
             }
 
             mw.write_image(p.as_str())?;
-        }
+        },
         ImageResource::Data(b) => {
             let mut temp = mw.write_image_blob("WEBP")?;
             b.append(&mut temp);
-        }
+        },
         ImageResource::MagickWand(mw_2) => {
             *mw_2 = mw;
-        }
+        },
     }
 
     Ok(())

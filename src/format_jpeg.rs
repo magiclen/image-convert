@@ -10,25 +10,25 @@ use crate::{
 /// The output config of a JPEG image.
 pub struct JPGConfig {
     /// Remain the profile stored in the input image.
-    pub remain_profile: bool,
+    pub remain_profile:            bool,
     /// The width of the output image. `0` means the original width.
-    pub width: u16,
+    pub width:                     u16,
     /// The height of the output image. `0` means the original height.
-    pub height: u16,
+    pub height:                    u16,
     /// Crop the image.
-    pub crop: Option<Crop>,
+    pub crop:                      Option<Crop>,
     /// Only shrink the image, not to enlarge it.
-    pub shrink_only: bool,
+    pub shrink_only:               bool,
     /// The higher the sharper. A negative value means auto adjustment.
-    pub sharpen: f64,
+    pub sharpen:                   f64,
     /// Use 4:2:0 (chroma quartered) subsampling to reduce the file size.
     pub force_to_chroma_quartered: bool,
     /// From 1 to 100, the higher the better.
-    pub quality: u8,
+    pub quality:                   u8,
     /// The color is used for fill up the alpha background.
-    pub background_color: Option<ColorName>,
+    pub background_color:          Option<ColorName>,
     /// Pixels per inch.
-    pub ppi: Option<(f64, f64)>,
+    pub ppi:                       Option<(f64, f64)>,
 }
 
 impl JPGConfig {
@@ -50,16 +50,16 @@ impl JPGConfig {
     #[inline]
     pub fn new() -> JPGConfig {
         JPGConfig {
-            remain_profile: false,
-            width: 0u16,
-            height: 0u16,
-            crop: None,
-            shrink_only: true,
-            sharpen: -1f64,
+            remain_profile:            false,
+            width:                     0u16,
+            height:                    0u16,
+            crop:                      None,
+            shrink_only:               true,
+            sharpen:                   -1f64,
             force_to_chroma_quartered: true,
-            quality: 85u8,
-            background_color: None,
-            ppi: None,
+            quality:                   85u8,
+            background_color:          None,
+            ppi:                       None,
         }
     }
 }
@@ -152,14 +152,14 @@ pub fn to_jpg(
             }
 
             mw.write_image(p.as_str())?;
-        }
+        },
         ImageResource::Data(b) => {
             let mut temp = mw.write_image_blob("JPEG")?;
             b.append(&mut temp);
-        }
+        },
         ImageResource::MagickWand(mw_2) => {
             *mw_2 = mw;
-        }
+        },
     }
 
     Ok(())

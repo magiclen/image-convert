@@ -6,11 +6,11 @@ use crate::{compute_output_size_sharpen, fetch_magic_wand, Crop, ImageConfig, Im
 #[derive(Debug)]
 struct ICOConfigInner {
     remain_profile: bool,
-    width: u16,
-    height: u16,
-    crop: Option<Crop>,
-    shrink_only: bool,
-    sharpen: f64,
+    width:          u16,
+    height:         u16,
+    crop:           Option<Crop>,
+    shrink_only:    bool,
+    sharpen:        f64,
 }
 
 impl ICOConfigInner {
@@ -38,11 +38,11 @@ pub struct ICOConfig {
     /// Remain the profile stored in the input image.
     pub remain_profile: bool,
     /// The size of the output image, made up of a width and a height. `0` means the original width or the original height.
-    pub size: Vec<(u16, u16)>,
+    pub size:           Vec<(u16, u16)>,
     /// Crop the image.
-    pub crop: Option<Crop>,
+    pub crop:           Option<Crop>,
     /// The higher the sharper. A negative value means auto adjustment.
-    pub sharpen: f64,
+    pub sharpen:        f64,
 }
 
 impl ICOConfig {
@@ -59,9 +59,9 @@ impl ICOConfig {
     pub fn new() -> ICOConfig {
         ICOConfig {
             remain_profile: false,
-            size: Vec::with_capacity(1),
-            crop: None,
-            sharpen: -1f64,
+            size:           Vec::with_capacity(1),
+            crop:           None,
+            sharpen:        -1f64,
         }
     }
 }
@@ -224,13 +224,13 @@ pub fn to_ico(
             };
 
             icon_dir.write(file).map_err(|_| "Cannot write the icon file.")?;
-        }
+        },
         ImageResource::Data(b) => {
             icon_dir.write(b).map_err(|_| "Cannot convert to icon data.")?;
-        }
+        },
         ImageResource::MagickWand(_) => {
             return Err("ICO cannot be output to a MagickWand instance.".into());
-        }
+        },
     }
 
     Ok(())

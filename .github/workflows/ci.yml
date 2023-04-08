@@ -10,13 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          profile: minimal
           toolchain: nightly
-          override: true
           components: rustfmt
-      - run: cargo fmt -- --check
+      - uses: actions-rust-lang/rustfmt@v1
 
   clippy:
     runs-on: ubuntu-latest
@@ -32,11 +30,8 @@ jobs:
           make -j$(nproc)
           sudo make install
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          profile: minimal
-          toolchain: nightly
-          override: true
           components: clippy
       - run: cargo clippy --all-targets --all-features -- -D warnings
 
@@ -48,9 +43,12 @@ jobs:
           - ubuntu-latest
           - macos-latest
         toolchain:
+          - 1.58
           - stable
           - nightly
-    name: Test ${{ matrix.toolchain }} on ${{ matrix.os }}
+        features:
+          -
+    name: Test ${{ matrix.toolchain }} on ${{ matrix.os }} (${{ matrix.features }})
     runs-on: ${{ matrix.os }}
     steps:
       - name: Install libwebp (Linux)
@@ -74,11 +72,8 @@ jobs:
       - run: sudo ldconfig
         if: runner.os == 'Linux'
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          profile: minimal
           toolchain: ${{ matrix.toolchain }}
-          override: true
-      - run: cargo build
-      - run: cargo test
-      - run: cargo doc
+      - run: cargo test ${{ matrix.features }}
+      - run: cargo doc ${{ matrix.features }}

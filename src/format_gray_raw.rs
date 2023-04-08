@@ -10,13 +10,13 @@ use crate::{
 /// The output config of a RAW image with gray colors.
 pub struct GrayRawConfig {
     /// Remain the profile stored in the input image.
-    pub remain_profile: bool,
+    pub remain_profile:   bool,
     /// The width of the output image. `0` means the original width.
-    pub width: u16,
+    pub width:            u16,
     /// The height of the output image. `0` means the original height.
-    pub height: u16,
+    pub height:           u16,
     /// Crop the image.
-    pub crop: Option<Crop>,
+    pub crop:             Option<Crop>,
     /// The color is used for fill up the alpha background.
     pub background_color: Option<ColorName>,
 }
@@ -35,10 +35,10 @@ impl GrayRawConfig {
     #[inline]
     pub fn new() -> GrayRawConfig {
         GrayRawConfig {
-            remain_profile: false,
-            width: 0u16,
-            height: 0u16,
-            crop: None,
+            remain_profile:   false,
+            width:            0u16,
+            height:           0u16,
+            crop:             None,
             background_color: None,
         }
     }
@@ -123,14 +123,14 @@ pub fn to_gray_raw(
             }
 
             mw.write_image(p.as_str())?;
-        }
+        },
         ImageResource::Data(b) => {
             let mut temp = mw.write_image_blob("GRAY")?;
             b.append(&mut temp);
-        }
+        },
         ImageResource::MagickWand(mw_2) => {
             *mw_2 = mw;
-        }
+        },
     }
 
     Ok(())

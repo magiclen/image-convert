@@ -86,8 +86,7 @@ mod image_config;
 mod image_resource;
 mod interlace_type;
 
-use std::cmp::Ordering;
-use std::sync::Once;
+use std::{cmp::Ordering, sync::Once};
 
 pub use color_name::*;
 pub use crop::*;
@@ -104,9 +103,7 @@ pub use identify::*;
 pub use image_config::*;
 pub use image_resource::*;
 pub use interlace_type::InterlaceType;
-
 use magick_rust::{magick_wand_genesis, MagickWand};
-
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -160,17 +157,17 @@ pub fn fetch_magic_wand(
                                 match fs::read_to_string(p) {
                                     Ok(svg) => {
                                         fetch_magic_wand_inner(mw, new_width, new_height, svg)
-                                    }
+                                    },
                                     Err(_) => Ok((mw, false)),
                                 }
                             }
-                        }
+                        },
                         None => Ok((mw, true)),
                     }
-                }
+                },
                 _ => Ok((mw, false)),
             }
-        }
+        },
         ImageResource::Data(b) => {
             let mw = MagickWand::new();
 
@@ -197,17 +194,17 @@ pub fn fetch_magic_wand(
                                 match String::from_utf8(b.to_vec()) {
                                     Ok(svg) => {
                                         fetch_magic_wand_inner(mw, new_width, new_height, svg)
-                                    }
+                                    },
                                     Err(_) => Ok((mw, false)),
                                 }
                             }
-                        }
+                        },
                         None => Ok((mw, true)),
                     }
-                }
+                },
                 _ => Ok((mw, false)),
             }
-        }
+        },
         ImageResource::MagickWand(mw) => {
             let mw = mw.clone();
 
@@ -216,7 +213,7 @@ pub fn fetch_magic_wand(
             }
 
             Ok((mw, false))
-        }
+        },
     }
 }
 
@@ -248,7 +245,7 @@ fn handle_crop(mw: &MagickWand, crop: Crop) -> Result<(), MagickError> {
             let y = (original_height - new_height) / 2;
 
             mw.crop_image(new_width, new_height, x as isize, y as isize)?;
-        }
+        },
     }
 
     Ok(())
@@ -280,7 +277,7 @@ fn fetch_magic_wand_inner(
                     let te = target.end() + s;
 
                     Some((ts, te))
-                }
+                },
                 None => None,
             };
 
@@ -309,7 +306,7 @@ fn fetch_magic_wand_inner(
                     let te = target.end() + s;
 
                     Some((ts, te))
-                }
+                },
                 None => None,
             };
 
@@ -333,7 +330,7 @@ fn fetch_magic_wand_inner(
             } else {
                 (mw, false)
             }
-        }
+        },
         None => (mw, false),
     };
 

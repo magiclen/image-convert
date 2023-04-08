@@ -3,6 +3,7 @@ name = "image-convert"
 version = "0.13.0"
 authors = ["Magic Len <len@magiclen.org>"]
 edition = "2021"
+rust-version = "1.58"
 repository = "https://github.com/magiclen/image-convert"
 homepage = "https://magiclen.org/image-convert"
 keywords = ["image", "interlacing", "resize", "imagemagick", "conversion"]
@@ -17,7 +18,7 @@ regex = "1"
 once_cell = "1"
 str-utils = "0.1"
 enum-ordinalize = "3.1"
-ico = "0.2"
+ico = "0.3"
 magick_rust = "0.17"
 
 [features]

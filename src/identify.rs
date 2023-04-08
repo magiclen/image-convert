@@ -3,7 +3,7 @@ use crate::{magick_rust::MagickWand, ImageResource, InterlaceType, MagickError, 
 /// The resolution of an image.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Resolution {
-    pub width: u32,
+    pub width:  u32,
     pub height: u32,
 }
 
@@ -11,9 +11,9 @@ pub struct Resolution {
 #[derive(Debug, Clone)]
 pub struct ImageIdentify {
     pub resolution: Resolution,
-    pub format: String,
-    pub interlace: InterlaceType,
-    pub ppi: (f64, f64),
+    pub format:     String,
+    pub interlace:  InterlaceType,
+    pub ppi:        (f64, f64),
 }
 
 fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, MagickError> {
@@ -69,7 +69,7 @@ pub fn identify(
             }
 
             Ok(identify)
-        }
+        },
         ImageResource::Data(b) => {
             let mw = MagickWand::new();
 
@@ -88,7 +88,7 @@ pub fn identify(
             }
 
             Ok(identify)
-        }
+        },
         ImageResource::MagickWand(mw) => {
             let identify = identify_inner(mw)?;
 
@@ -97,7 +97,7 @@ pub fn identify(
             }
 
             Ok(identify)
-        }
+        },
     }
 }
 
@@ -114,7 +114,7 @@ pub fn identify_ping(input: &ImageResource) -> Result<ImageIdentify, MagickError
             let identify = identify_inner(&mw)?;
 
             Ok(identify)
-        }
+        },
         ImageResource::Data(b) => {
             let mw = MagickWand::new();
 
@@ -123,12 +123,12 @@ pub fn identify_ping(input: &ImageResource) -> Result<ImageIdentify, MagickError
             let identify = identify_inner(&mw)?;
 
             Ok(identify)
-        }
+        },
         ImageResource::MagickWand(mw) => {
             let identify = identify_inner(mw)?;
 
             Ok(identify)
-        }
+        },
     }
 }
 
@@ -152,7 +152,7 @@ pub fn identify_read(
             output.replace(mw);
 
             Ok(identify)
-        }
+        },
         ImageResource::Data(b) => {
             let mw = MagickWand::new();
 
@@ -165,13 +165,13 @@ pub fn identify_read(
             output.replace(mw);
 
             Ok(identify)
-        }
+        },
         ImageResource::MagickWand(mw) => {
             let identify = identify_inner(mw)?;
 
             output.replace(mw.clone());
 
             Ok(identify)
-        }
+        },
     }
 }

@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 
-use crate::magick_rust::MagickWand;
-use crate::Crop;
+use crate::{magick_rust::MagickWand, Crop};
 
 // The general config of an image format.
 pub trait ImageConfig: Debug {

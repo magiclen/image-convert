@@ -1,5 +1,7 @@
-use std::io::{self, Read};
-use std::path::{Path, PathBuf};
+use std::{
+    io::{self, Read},
+    path::{Path, PathBuf},
+};
 
 use crate::magick_rust::MagickWand;
 
