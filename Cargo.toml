@@ -9,7 +9,6 @@ homepage = "https://magiclen.org/image-convert"
 keywords = ["image", "interlacing", "resize", "imagemagick", "conversion"]
 categories = ["multimedia::images", "multimedia::encoding"]
 description = "A high level library for image identification, conversion, interlacing and high quality resizing."
-readme = "README.md"
 license = "MIT"
 include = ["src/**/*", "Cargo.toml", "README.md", "LICENSE"]
 
