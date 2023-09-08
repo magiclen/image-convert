@@ -17,7 +17,6 @@ jobs:
           - ubuntu-latest
           - macos-latest
         toolchain:
-          - 1.64.0
           - stable
           - nightly
         features:
@@ -51,3 +50,43 @@ jobs:
           toolchain: ${{ matrix.toolchain }}
       - run: cargo test --release ${{ matrix.features }}
       - run: cargo doc --release ${{ matrix.features }}
+
+  MSRV:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+        toolchain:
+          - 1.64
+        features:
+          -
+    name: Test ${{ matrix.toolchain }} on ${{ matrix.os }} (${{ matrix.features }})
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install libwebp (Linux)
+        run: |
+          sudo apt update
+          sudo apt install libwebp-dev
+        if: runner.os == 'Linux'
+      - name: Install libwebp (macOS)
+        run: |
+          brew update
+          brew list webp || brew install webp
+        if: runner.os == 'macOS'
+      - name: Install ImageMagick
+        run: |
+          wget https://imagemagick.org/archive/ImageMagick.tar.gz
+          tar xf ImageMagick.tar.gz
+          cd ImageMagick-*
+          ./configure --enable-hdri
+          make -j$(nproc)
+          sudo make install
+      - run: sudo ldconfig
+        if: runner.os == 'Linux'
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      - run: cargo test --release --lib --bins ${{ matrix.features }}
