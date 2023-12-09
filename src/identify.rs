@@ -44,66 +44,6 @@ fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, MagickError> {
     })
 }
 
-#[deprecated(since = "0.11.3", note = "please use `identify_ping` or `identify_read` instead")]
-/// Identify an image. It can also be used for read an image as `MagickWand` instances.
-#[allow(clippy::option_option)]
-pub fn identify(
-    output: &mut Option<Option<MagickWand>>,
-    input: &ImageResource,
-) -> Result<ImageIdentify, MagickError> {
-    START_CALL_ONCE();
-
-    match input {
-        ImageResource::Path(p) => {
-            let mw = MagickWand::new();
-
-            if output.is_some() {
-                set_none_background!(mw);
-
-                mw.read_image(p.as_str())?;
-            } else {
-                mw.ping_image(p.as_str())?;
-            }
-
-            let identify = identify_inner(&mw)?;
-
-            if let Some(s) = output {
-                s.replace(mw);
-            }
-
-            Ok(identify)
-        },
-        ImageResource::Data(b) => {
-            let mw = MagickWand::new();
-
-            if output.is_some() {
-                set_none_background!(mw);
-
-                mw.read_image_blob(b)?;
-            } else {
-                mw.ping_image_blob(b)?;
-            }
-
-            let identify = identify_inner(&mw)?;
-
-            if let Some(s) = output {
-                s.replace(mw);
-            }
-
-            Ok(identify)
-        },
-        ImageResource::MagickWand(mw) => {
-            let identify = identify_inner(mw)?;
-
-            if let Some(s) = output {
-                s.replace(mw.clone());
-            }
-
-            Ok(identify)
-        },
-    }
-}
-
 /// Ping and identify an image.
 pub fn identify_ping(input: &ImageResource) -> Result<ImageIdentify, MagickError> {
     START_CALL_ONCE();
