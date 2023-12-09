@@ -212,7 +212,6 @@ pub fn fetch_magic_wand(
     }
 }
 
-#[allow(clippy::many_single_char_names)]
 fn handle_crop(mw: &MagickWand, crop: Crop) -> Result<(), MagickError> {
     match crop {
         Crop::Center(w, h) => {
