@@ -1,3 +1,4 @@
+use enum_ordinalize::Ordinalize;
 use magick_rust::{bindings, MagickError};
 use str_utils::EndsWithIgnoreAsciiCase;
 

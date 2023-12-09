@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::magick_rust::MagickWand;
+use magick_rust::MagickWand;
 
 /// The resource of an image. It can be an input resource or an output resource.
 #[derive(Debug)]
