@@ -1,4 +1,5 @@
-use crate::magick_rust::bindings;
+use enum_ordinalize::Ordinalize;
+use magick_rust::bindings;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Ordinalize)]
 #[repr(isize)]

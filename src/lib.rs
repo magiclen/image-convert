@@ -47,12 +47,7 @@ to_png(&mut output, &input, &config).unwrap();
 Supported output formats are `BMP`, `JPG`, `PNG`, `GIF`, `WEBP`, `ICO`, `PGM` and `GrayRaw`.
 */
 
-#![allow(clippy::enum_clike_unportable_variant)]
-
 pub extern crate magick_rust;
-
-#[macro_use]
-extern crate enum_ordinalize;
 
 pub use magick_rust::MagickError;
 
