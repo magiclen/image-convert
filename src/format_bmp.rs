@@ -43,7 +43,7 @@ impl BMPConfig {
     /// }
     /// ```
     #[inline]
-    pub fn new() -> BMPConfig {
+    pub const fn new() -> BMPConfig {
         BMPConfig {
             remain_profile:   false,
             width:            0u16,

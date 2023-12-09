@@ -1,7 +1,7 @@
 use enum_ordinalize::Ordinalize;
-use magick_rust::MagickWand;
+use magick_rust::{MagickError, MagickWand};
 
-use crate::{ImageResource, InterlaceType, MagickError, START_CALL_ONCE};
+use crate::{functions::set_none_background, ImageResource, InterlaceType, START_CALL_ONCE};
 
 /// The resolution of an image.
 #[derive(Debug, Clone, PartialEq, Eq)]

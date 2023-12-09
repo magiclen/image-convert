@@ -36,7 +36,7 @@ impl GIFConfig {
     /// }
     /// ```
     #[inline]
-    pub fn new() -> GIFConfig {
+    pub const fn new() -> GIFConfig {
         GIFConfig {
             remain_profile: false,
             width:          0u16,

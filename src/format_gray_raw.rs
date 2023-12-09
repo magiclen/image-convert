@@ -34,7 +34,7 @@ impl GrayRawConfig {
     /// }
     /// ```
     #[inline]
-    pub fn new() -> GrayRawConfig {
+    pub const fn new() -> GrayRawConfig {
         GrayRawConfig {
             remain_profile:   false,
             width:            0u16,
