@@ -38,7 +38,7 @@ impl PGMConfig {
     /// }
     /// ```
     #[inline]
-    pub fn new() -> PGMConfig {
+    pub const fn new() -> PGMConfig {
         PGMConfig {
             remain_profile:   false,
             width:            0u16,

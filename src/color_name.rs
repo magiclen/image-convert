@@ -23,33 +23,32 @@ pub enum ColorName {
 
 impl ColorName {
     /// Get the static string slice of this color name.
-    pub fn as_str(self) -> &'static str {
+    pub const fn as_str(self) -> &'static str {
         match self {
-            ColorName::White => "white",
-            ColorName::Black => "black",
-            ColorName::Red => "red",
-            ColorName::Green => "green",
-            ColorName::Blue => "blue",
-            ColorName::Yellow => "yellow",
-            ColorName::Cyan => "cyan",
-            ColorName::Magenta => "magenta",
+            Self::White => "white",
+            Self::Black => "black",
+            Self::Red => "red",
+            Self::Green => "green",
+            Self::Blue => "blue",
+            Self::Yellow => "yellow",
+            Self::Cyan => "cyan",
+            Self::Magenta => "magenta",
         }
     }
 
     /// Get the static string slice of this color name.
-    #[allow(clippy::should_implement_trait)]
-    pub fn from_str<S: AsRef<str>>(s: S) -> Option<ColorName> {
+    pub fn parse_str<S: AsRef<str>>(s: S) -> Option<Self> {
         let s = s.as_ref().to_lowercase();
 
         match s.as_str() {
-            "white" => Some(ColorName::White),
-            "black" => Some(ColorName::Black),
-            "red" => Some(ColorName::Red),
-            "green" => Some(ColorName::Green),
-            "blue" => Some(ColorName::Blue),
-            "yellow" => Some(ColorName::Yellow),
-            "cyan" => Some(ColorName::Cyan),
-            "magenta" => Some(ColorName::Magenta),
+            "white" => Some(Self::White),
+            "black" => Some(Self::Black),
+            "red" => Some(Self::Red),
+            "green" => Some(Self::Green),
+            "blue" => Some(Self::Blue),
+            "yellow" => Some(Self::Yellow),
+            "cyan" => Some(Self::Cyan),
+            "magenta" => Some(Self::Magenta),
             _ => None,
         }
     }
@@ -60,6 +59,6 @@ impl FromStr for ColorName {
 
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        ColorName::from_str(s).ok_or(())
+        Self::parse_str(s).ok_or(())
     }
 }

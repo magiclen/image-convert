@@ -43,7 +43,7 @@ impl TIFFConfig {
     /// }
     /// ```
     #[inline]
-    pub fn new() -> TIFFConfig {
+    pub const fn new() -> TIFFConfig {
         TIFFConfig {
             remain_profile:   false,
             width:            0u16,

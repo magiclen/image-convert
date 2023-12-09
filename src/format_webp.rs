@@ -39,7 +39,7 @@ impl WEBPConfig {
     /// }
     /// ```
     #[inline]
-    pub fn new() -> WEBPConfig {
+    pub const fn new() -> WEBPConfig {
         WEBPConfig {
             remain_profile: false,
             width:          0u16,

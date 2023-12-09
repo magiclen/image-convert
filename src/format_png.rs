@@ -39,7 +39,7 @@ impl PNGConfig {
     /// }
     /// ```
     #[inline]
-    pub fn new() -> PNGConfig {
+    pub const fn new() -> PNGConfig {
         PNGConfig {
             remain_profile: false,
             width:          0u16,

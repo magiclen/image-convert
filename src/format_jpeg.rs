@@ -49,7 +49,7 @@ impl JPGConfig {
     /// }
     /// ```
     #[inline]
-    pub fn new() -> JPGConfig {
+    pub const fn new() -> JPGConfig {
         JPGConfig {
             remain_profile:            false,
             width:                     0u16,
