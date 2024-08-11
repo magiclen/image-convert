@@ -32,7 +32,7 @@ jobs:
       - name: Install libjpeg & libwebp (macOS)
         run: |
           brew update
-          brew list jpeg-turbo || brew install jpeg-turbo
+          brew install jpeg && export LDFLAGS="${LDFLAGS} -L/opt/homebrew/opt/jpeg/lib" && export CPPFLAGS="${CPPFLAGS} -I/opt/homebrew/opt/jpeg/include" && export PKG_CONFIG_PATH="${PKG_CONFIG_PATH} /opt/homebrew/opt/jpeg/lib/pkgconfig"
           brew list webp || brew install webp
         if: runner.os == 'macOS'
       - name: Install ImageMagick
@@ -74,7 +74,7 @@ jobs:
       - name: Install libjpeg & libwebp (macOS)
         run: |
           brew update
-          brew list jpeg-turbo || brew install jpeg-turbo
+          brew install jpeg && export LDFLAGS="${LDFLAGS} -L/opt/homebrew/opt/jpeg/lib" && export CPPFLAGS="${CPPFLAGS} -I/opt/homebrew/opt/jpeg/include" && export PKG_CONFIG_PATH="${PKG_CONFIG_PATH} /opt/homebrew/opt/jpeg/lib/pkgconfig"
           brew list webp || brew install webp
         if: runner.os == 'macOS'
       - name: Install ImageMagick
