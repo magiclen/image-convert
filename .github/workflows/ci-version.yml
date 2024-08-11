@@ -29,10 +29,9 @@ jobs:
           sudo apt update
           sudo apt install libwebp-dev
         if: runner.os == 'Linux'
-      - name: Install libjpeg & libwebp (macOS)
+      - name: Install libwebp (macOS)
         run: |
           brew update
-          brew install libjpeg-turbo@2.1.5.1 && brew link libjpeg-turbo@2.1.5.1
           brew list webp || brew install webp
         if: runner.os == 'macOS'
       - name: Install ImageMagick
@@ -71,10 +70,9 @@ jobs:
           sudo apt update
           sudo apt install libwebp-dev
         if: runner.os == 'Linux'
-      - name: Install libjpeg & libwebp (macOS)
+      - name: Install libwebp (macOS)
         run: |
           brew update
-          brew install libjpeg-turbo@2.1.5.1 && brew link libjpeg-turbo@2.1.5.1
           brew list webp || brew install webp
         if: runner.os == 'macOS'
       - name: Install ImageMagick
