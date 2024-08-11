@@ -1,6 +1,6 @@
 [package]
 name = "image-convert"
-version = "0.17.0"
+version = "0.17.1"
 authors = ["Magic Len <len@magiclen.org>"]
 edition = "2021"
 rust-version = "1.70"
@@ -16,7 +16,6 @@ include = ["src/**/*", "Cargo.toml", "README.md", "LICENSE"]
 regex = "1"
 once_cell = "1"
 str-utils = "0.1"
-enum-ordinalize = "4.2"
 ico = "0.3"
 magick_rust = "1.0"
 
