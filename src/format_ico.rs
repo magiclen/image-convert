@@ -1,4 +1,4 @@
-use magick_rust::{bindings, MagickError};
+use magick_rust::{FilterType, MagickError};
 use str_utils::EndsWithIgnoreAsciiCase;
 
 use crate::{compute_output_size_sharpen, fetch_magic_wand, Crop, ImageConfig, ImageResource};
@@ -173,11 +173,7 @@ pub fn to_ico(
             {
                 let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
 
-                mw.resize_image(
-                    width as usize,
-                    height as usize,
-                    bindings::FilterType_LanczosFilter,
-                );
+                mw.resize_image(width as usize, height as usize, FilterType::Lanczos)?;
 
                 mw.sharpen_image(0f64, sharpen)?;
 
@@ -194,11 +190,7 @@ pub fn to_ico(
 
                 let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
 
-                mw.resize_image(
-                    width as usize,
-                    height as usize,
-                    bindings::FilterType_LanczosFilter,
-                );
+                mw.resize_image(width as usize, height as usize, FilterType::Lanczos)?;
 
                 mw.sharpen_image(0f64, sharpen)?;
 
@@ -218,7 +210,7 @@ pub fn to_ico(
                 return Err("The file extension name is not ico.".into());
             }
 
-            let file = match std::fs::File::create(&p) {
+            let file = match std::fs::File::create(p) {
                 Ok(f) => f,
                 Err(_) => return Err("Cannot create the icon file.".into()),
             };

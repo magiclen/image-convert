@@ -1,5 +1,4 @@
-use enum_ordinalize::Ordinalize;
-use magick_rust::{bindings, MagickError};
+use magick_rust::{FilterType, MagickError};
 use str_utils::EndsWithIgnoreAsciiCase;
 
 use crate::{
@@ -98,7 +97,7 @@ pub fn to_gif(
     if !vector {
         let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
 
-        mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
+        mw.resize_image(width as usize, height as usize, FilterType::Lanczos)?;
 
         mw.sharpen_image(0f64, sharpen)?;
     }
@@ -109,7 +108,7 @@ pub fn to_gif(
 
     mw.set_image_compression_quality(100)?;
 
-    mw.set_interlace_scheme(InterlaceType::LineInterlace.ordinal() as bindings::InterlaceType)?;
+    mw.set_interlace_scheme(InterlaceType::Line)?;
 
     mw.set_image_format("GIF")?;
 

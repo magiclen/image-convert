@@ -1,5 +1,4 @@
-use enum_ordinalize::Ordinalize;
-use magick_rust::{bindings, MagickError};
+use magick_rust::{FilterType, MagickError, ResolutionType};
 use str_utils::EndsWithIgnoreAsciiCase;
 
 use crate::{
@@ -102,7 +101,7 @@ pub fn to_png(
     if !vector {
         let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
 
-        mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
+        mw.resize_image(width as usize, height as usize, FilterType::Lanczos)?;
 
         mw.sharpen_image(0f64, sharpen)?;
     }
@@ -113,13 +112,13 @@ pub fn to_png(
 
     mw.set_image_compression_quality(100)?;
 
-    mw.set_interlace_scheme(InterlaceType::LineInterlace.ordinal() as bindings::InterlaceType)?;
+    mw.set_interlace_scheme(InterlaceType::Line)?;
 
     mw.set_image_format("PNG")?;
 
     if let Some((x, y)) = config.ppi {
         mw.set_image_resolution(x.max(0f64), y.max(0f64))?;
-        mw.set_image_units(bindings::ResolutionType_PixelsPerInchResolution)?;
+        mw.set_image_units(ResolutionType::PixelsPerInch)?;
     }
 
     match output {

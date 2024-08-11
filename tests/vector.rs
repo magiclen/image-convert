@@ -17,7 +17,7 @@ fn get_identify() {
     assert_eq!(512, id.resolution.width);
     assert_eq!(512, id.resolution.height);
     assert!(id.format == "MVG" || id.format == "SVG");
-    assert_eq!(InterlaceType::NoInterlace, id.interlace);
+    assert_eq!(InterlaceType::No, id.interlace);
 }
 
 #[test]

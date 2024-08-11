@@ -1,4 +1,3 @@
-use enum_ordinalize::Ordinalize;
 use magick_rust::{MagickError, MagickWand};
 
 use crate::{functions::set_none_background, ImageResource, InterlaceType, START_CALL_ONCE};
@@ -38,8 +37,7 @@ fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, MagickError> {
     Ok(ImageIdentify {
         resolution,
         format,
-        interlace: InterlaceType::from_ordinal(interlace as isize)
-            .unwrap_or(InterlaceType::UndefinedInterlace),
+        interlace,
         ppi,
     })
 }

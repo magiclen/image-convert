@@ -1,5 +1,4 @@
-use enum_ordinalize::Ordinalize;
-use magick_rust::{bindings, MagickError, PixelWand};
+use magick_rust::{AlphaChannelOption, ColorspaceType, FilterType, MagickError, PixelWand};
 use str_utils::EndsWithIgnoreAsciiCase;
 
 use crate::{
@@ -96,24 +95,24 @@ pub fn to_gray_raw(
         let mut pw = PixelWand::new();
         pw.set_color(background_color.as_str())?;
         mw.set_image_background_color(&pw)?;
-        mw.set_image_alpha_channel(bindings::AlphaChannelOption_RemoveAlphaChannel)?;
+        mw.set_image_alpha_channel(AlphaChannelOption::Remove)?;
     }
 
     if !vector {
         let (width, height, _) = compute_output_size_sharpen(&mw, config);
 
-        mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
+        mw.resize_image(width as usize, height as usize, FilterType::Lanczos)?;
     }
 
     if !config.remain_profile {
         mw.profile_image("*", None)?;
     }
 
-    mw.set_interlace_scheme(InterlaceType::NoInterlace.ordinal() as bindings::InterlaceType)?;
+    mw.set_interlace_scheme(InterlaceType::No)?;
 
     mw.set_image_depth(8)?;
 
-    mw.set_image_colorspace(bindings::ColorspaceType_GRAYColorspace)?;
+    mw.set_image_colorspace(ColorspaceType::GRAY)?;
 
     mw.set_image_format("GRAY")?;
 

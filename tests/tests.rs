@@ -18,7 +18,7 @@ fn get_identify() {
     assert_eq!(2584, id.resolution.height);
     assert_eq!("JPEG", id.format);
     assert_eq!((180.0f64, 180.0f64), id.ppi);
-    assert_eq!(InterlaceType::NoInterlace, id.interlace);
+    assert_eq!(InterlaceType::No, id.interlace);
 }
 
 #[test]

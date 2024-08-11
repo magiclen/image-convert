@@ -1,4 +1,4 @@
-use magick_rust::{bindings, MagickError, PixelWand};
+use magick_rust::{AlphaChannelOption, FilterType, MagickError, PixelWand};
 use str_utils::EndsWithIgnoreAsciiCase;
 
 use crate::{
@@ -102,13 +102,13 @@ pub fn to_pgm(
         let mut pw = PixelWand::new();
         pw.set_color(background_color.as_str())?;
         mw.set_image_background_color(&pw)?;
-        mw.set_image_alpha_channel(bindings::AlphaChannelOption_RemoveAlphaChannel)?;
+        mw.set_image_alpha_channel(AlphaChannelOption::Remove)?;
     }
 
     if !vector {
         let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
 
-        mw.resize_image(width as usize, height as usize, bindings::FilterType_LanczosFilter);
+        mw.resize_image(width as usize, height as usize, FilterType::Lanczos)?;
 
         mw.sharpen_image(0f64, sharpen)?;
     }
