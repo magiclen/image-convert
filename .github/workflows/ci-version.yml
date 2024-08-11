@@ -32,7 +32,7 @@ jobs:
       - name: Install libjpeg & libwebp (macOS)
         run: |
           brew update
-          brew reinstall jpeg --universal
+          brew list jpeg-turbo || brew install jpeg-turbo
           brew list webp || brew install webp
         if: runner.os == 'macOS'
       - name: Install ImageMagick
@@ -74,7 +74,7 @@ jobs:
       - name: Install libjpeg & libwebp (macOS)
         run: |
           brew update
-          brew reinstall jpeg --universal
+          brew list jpeg-turbo || brew install jpeg-turbo
           brew list webp || brew install webp
         if: runner.os == 'macOS'
       - name: Install ImageMagick
