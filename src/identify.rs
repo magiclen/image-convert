@@ -12,10 +12,11 @@ pub struct Resolution {
 /// The identified data of an image.
 #[derive(Debug, Clone)]
 pub struct ImageIdentify {
-    pub resolution: Resolution,
-    pub format:     String,
-    pub interlace:  InterlaceType,
-    pub ppi:        (f64, f64),
+    pub resolution:        Resolution,
+    pub format:            String,
+    pub interlace:         InterlaceType,
+    pub ppi:               (f64, f64),
+    pub has_alpha_channel: bool,
 }
 
 fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, MagickError> {
@@ -34,11 +35,14 @@ fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, MagickError> {
 
     let ppi = mw.get_image_resolution()?;
 
+    let has_alpha_channel = mw.get_image_alpha_channel();
+
     Ok(ImageIdentify {
         resolution,
         format,
         interlace,
         ppi,
+        has_alpha_channel,
     })
 }
 

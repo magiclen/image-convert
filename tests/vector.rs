@@ -18,6 +18,7 @@ fn get_identify() {
     assert_eq!(512, id.resolution.height);
     assert!(id.format == "MVG" || id.format == "SVG");
     assert_eq!(InterlaceType::No, id.interlace);
+    assert!(id.has_alpha_channel);
 }
 
 #[test]

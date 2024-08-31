@@ -19,6 +19,7 @@ fn get_identify() {
     assert_eq!("JPEG", id.format);
     assert_eq!((180.0f64, 180.0f64), id.ppi);
     assert_eq!(InterlaceType::No, id.interlace);
+    assert!(!id.has_alpha_channel);
 }
 
 #[test]
