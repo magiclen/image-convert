@@ -24,10 +24,10 @@ jobs:
     name: Test ${{ matrix.toolchain }} on ${{ matrix.os }} (${{ matrix.features }})
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Install libxml2 & libwebp (Linux)
+      - name: Install libwebp (Linux)
         run: |
           sudo apt update
-          sudo apt install libxml2-dev libwebp-dev
+          sudo apt install libwebp-dev
         if: runner.os == 'Linux'
       - name: Install libwebp (macOS)
         run: |
@@ -65,10 +65,10 @@ jobs:
     name: Test ${{ matrix.toolchain }} on ${{ matrix.os }} (${{ matrix.features }})
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Install libxml2 & libwebp (Linux)
+      - name: Install libwebp (Linux)
         run: |
           sudo apt update
-          sudo apt install libxml2-dev libwebp-dev
+          sudo apt install libwebp-dev
         if: runner.os == 'Linux'
       - name: Install libwebp (macOS)
         run: |
