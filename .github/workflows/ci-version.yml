@@ -27,7 +27,7 @@ jobs:
       - name: Install librsvg2 libwebp (Linux)
         run: |
           sudo apt update
-          sudo apt install librsvg2 libwebp-dev
+          sudo apt install librsvg2-dev libwebp-dev
         if: runner.os == 'Linux'
       - name: Install libwebp (macOS)
         run: |
@@ -68,7 +68,7 @@ jobs:
       - name: Install librsvg2 libwebp (Linux)
         run: |
           sudo apt update
-          sudo apt install librsvg2 libwebp-dev
+          sudo apt install librsvg2-dev libwebp-dev
         if: runner.os == 'Linux'
       - name: Install libwebp (macOS)
         run: |
