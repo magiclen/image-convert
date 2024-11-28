@@ -15,7 +15,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          # - macos-latest # jpeg will break things
+          - macos-latest # jpeg will break things
         toolchain:
           - stable
           - nightly
@@ -57,7 +57,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          # - macos-latest # jpeg will break things
+          - macos-latest # jpeg will break things
         toolchain:
           - "1.70"
         features:
