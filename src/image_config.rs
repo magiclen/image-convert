@@ -6,7 +6,7 @@ use crate::Crop;
 
 // The general config of an image format.
 pub trait ImageConfig: Debug {
-    fn is_remain_profile(&self) -> bool;
+    fn is_strip_metadata(&self) -> bool;
     fn get_width(&self) -> u16;
     fn get_height(&self) -> u16;
     fn get_crop(&self) -> Option<Crop>;

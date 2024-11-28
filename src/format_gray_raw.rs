@@ -9,8 +9,8 @@ use crate::{
 #[derive(Debug)]
 /// The output config of a RAW image with gray colors.
 pub struct GrayRawConfig {
-    /// Remain the profile stored in the input image.
-    pub remain_profile:   bool,
+    /// Remove the metadata stored in the input image.
+    pub strip_metadata:   bool,
     /// The width of the output image. `0` means the original width.
     pub width:            u16,
     /// The height of the output image. `0` means the original height.
@@ -25,7 +25,7 @@ impl GrayRawConfig {
     /// Create a `GrayRawConfig` instance with default values.
     /// ```rust,ignore
     /// GrayRawConfig {
-    ///     remain_profile: false,
+    ///     strip_metadata: true,
     ///     width: 0u16,
     ///     height: 0u16,
     ///     crop: None,
@@ -35,7 +35,7 @@ impl GrayRawConfig {
     #[inline]
     pub const fn new() -> GrayRawConfig {
         GrayRawConfig {
-            remain_profile:   false,
+            strip_metadata:   true,
             width:            0u16,
             height:           0u16,
             crop:             None,
@@ -53,8 +53,8 @@ impl Default for GrayRawConfig {
 
 impl ImageConfig for GrayRawConfig {
     #[inline]
-    fn is_remain_profile(&self) -> bool {
-        self.remain_profile
+    fn is_strip_metadata(&self) -> bool {
+        self.strip_metadata
     }
 
     #[inline]
@@ -104,8 +104,8 @@ pub fn to_gray_raw(
         mw.resize_image(width as usize, height as usize, FilterType::Lanczos)?;
     }
 
-    if !config.remain_profile {
-        mw.profile_image("*", None)?;
+    if config.strip_metadata {
+        mw.strip_image()?;
     }
 
     mw.set_interlace_scheme(InterlaceType::No)?;

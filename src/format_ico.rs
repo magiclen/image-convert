@@ -5,7 +5,7 @@ use crate::{compute_output_size_sharpen, fetch_magic_wand, Crop, ImageConfig, Im
 
 #[derive(Debug)]
 struct ICOConfigInner {
-    remain_profile: bool,
+    strip_metadata: bool,
     width:          u16,
     height:         u16,
     crop:           Option<Crop>,
@@ -19,7 +19,7 @@ impl ICOConfigInner {
 
         for (width, height) in config.size.iter().copied() {
             output.push(ICOConfigInner {
-                remain_profile: config.remain_profile,
+                strip_metadata: config.strip_metadata,
                 width,
                 height,
                 crop: config.crop,
@@ -35,8 +35,8 @@ impl ICOConfigInner {
 #[derive(Debug)]
 /// The output config of an ICO image.
 pub struct ICOConfig {
-    /// Remain the profile stored in the input image.
-    pub remain_profile: bool,
+    /// Remove the metadata stored in the input image.
+    pub strip_metadata: bool,
     /// The size of the output image, made up of a width and a height. `0` means the original width or the original height.
     pub size:           Vec<(u16, u16)>,
     /// Crop the image.
@@ -49,7 +49,7 @@ impl ICOConfig {
     /// Create a `ICOConfig` instance with default values.
     /// ```rust,ignore
     /// ICOConfig {
-    ///     remain_profile: false,
+    ///     strip_metadata: true,
     ///     size: Vec::with_capacity(1),
     ///     crop: None,
     ///     sharpen: -1f64,
@@ -58,7 +58,7 @@ impl ICOConfig {
     #[inline]
     pub fn new() -> ICOConfig {
         ICOConfig {
-            remain_profile: false,
+            strip_metadata: true,
             size:           Vec::with_capacity(1),
             crop:           None,
             sharpen:        -1f64,
@@ -75,8 +75,8 @@ impl Default for ICOConfig {
 
 impl ImageConfig for ICOConfigInner {
     #[inline]
-    fn is_remain_profile(&self) -> bool {
-        self.remain_profile
+    fn is_strip_metadata(&self) -> bool {
+        self.strip_metadata
     }
 
     #[inline]
@@ -123,8 +123,8 @@ pub fn to_ico(
         let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
         if vector {
-            if !config.remain_profile {
-                mw.profile_image("*", None)?;
+            if config.strip_metadata {
+                mw.strip_image()?;
             }
 
             mw.set_image_format("RGBA")?;
@@ -149,7 +149,7 @@ pub fn to_ico(
                     return Err("The input image may not be a correct vector.".into());
                 }
 
-                mw.profile_image("*", None)?;
+                mw.strip_image()?;
 
                 mw.set_image_format("RGBA")?;
                 mw.set_image_depth(8)?;
@@ -165,7 +165,7 @@ pub fn to_ico(
                 icon_dir.add_entry(ico::IconDirEntry::encode_as_bmp(&icon_image).unwrap());
             }
         } else {
-            mw.profile_image("*", None)?;
+            mw.strip_image()?;
 
             mw.set_image_format("RGBA")?;
             mw.set_image_depth(8)?;

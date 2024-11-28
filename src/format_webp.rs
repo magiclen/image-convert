@@ -8,8 +8,8 @@ use crate::{
 #[derive(Debug)]
 /// The output config of a WEBP image.
 pub struct WEBPConfig {
-    /// Remain the profile stored in the input image.
-    pub remain_profile: bool,
+    /// Remove the metadata stored in the input image.
+    pub strip_metadata: bool,
     /// The width of the output image. `0` means the original width.
     pub width:          u16,
     /// The height of the output image. `0` means the original height.
@@ -28,7 +28,7 @@ impl WEBPConfig {
     /// Create a `WEBPConfig` instance with default values.
     /// ```rust,ignore
     /// WEBPConfig {
-    ///     remain_profile: false,
+    ///     strip_metadata: true,
     ///     width: 0u16,
     ///     height: 0u16,
     ///     crop: None,
@@ -40,7 +40,7 @@ impl WEBPConfig {
     #[inline]
     pub const fn new() -> WEBPConfig {
         WEBPConfig {
-            remain_profile: false,
+            strip_metadata: true,
             width:          0u16,
             height:         0u16,
             crop:           None,
@@ -60,8 +60,8 @@ impl Default for WEBPConfig {
 
 impl ImageConfig for WEBPConfig {
     #[inline]
-    fn is_remain_profile(&self) -> bool {
-        self.remain_profile
+    fn is_strip_metadata(&self) -> bool {
+        self.strip_metadata
     }
 
     #[inline]
@@ -106,8 +106,8 @@ pub fn to_webp(
         mw.sharpen_image(0f64, sharpen)?;
     }
 
-    if !config.remain_profile {
-        mw.profile_image("*", None)?;
+    if config.strip_metadata {
+        mw.strip_image()?;
     }
 
     mw.set_image_compression_quality(config.quality.min(100) as usize)?;

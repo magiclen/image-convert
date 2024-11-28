@@ -9,8 +9,8 @@ use crate::{
 #[derive(Debug)]
 /// The output config of a TIFF image.
 pub struct TIFFConfig {
-    /// Remain the profile stored in the input image.
-    pub remain_profile:   bool,
+    /// Remove the metadata stored in the input image.
+    pub strip_metadata:   bool,
     /// The width of the output image. `0` means the original width.
     pub width:            u16,
     /// The height of the output image. `0` means the original height.
@@ -31,7 +31,7 @@ impl TIFFConfig {
     /// Create a `TIFFConfig` instance with default values.
     /// ```rust,ignore
     /// TIFFConfig {
-    ///     remain_profile: false,
+    ///     strip_metadata: true,
     ///     width: 0u16,
     ///     height: 0u16,
     ///     crop: None,
@@ -44,7 +44,7 @@ impl TIFFConfig {
     #[inline]
     pub const fn new() -> TIFFConfig {
         TIFFConfig {
-            remain_profile:   false,
+            strip_metadata:   true,
             width:            0u16,
             height:           0u16,
             crop:             None,
@@ -65,8 +65,8 @@ impl Default for TIFFConfig {
 
 impl ImageConfig for TIFFConfig {
     #[inline]
-    fn is_remain_profile(&self) -> bool {
-        self.remain_profile
+    fn is_strip_metadata(&self) -> bool {
+        self.strip_metadata
     }
 
     #[inline]
@@ -118,8 +118,8 @@ pub fn to_tiff(
         mw.sharpen_image(0f64, sharpen)?;
     }
 
-    if !config.remain_profile {
-        mw.profile_image("*", None)?;
+    if config.strip_metadata {
+        mw.strip_image()?;
     }
 
     mw.set_image_compression_quality(100)?;
