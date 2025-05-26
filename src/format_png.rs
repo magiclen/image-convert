@@ -9,19 +9,21 @@ use crate::{
 /// The output config of a PNG image.
 pub struct PNGConfig {
     /// Remove the metadata stored in the input image.
-    pub strip_metadata: bool,
+    pub strip_metadata:      bool,
     /// The width of the output image. `0` means the original width.
-    pub width:          u16,
+    pub width:               u16,
     /// The height of the output image. `0` means the original height.
-    pub height:         u16,
+    pub height:              u16,
     /// Crop the image.
-    pub crop:           Option<Crop>,
+    pub crop:                Option<Crop>,
     /// Only shrink the image, not to enlarge it.
-    pub shrink_only:    bool,
+    pub shrink_only:         bool,
     /// The higher the sharper. A negative value means auto adjustment.
-    pub sharpen:        f64,
+    pub sharpen:             f64,
+    /// Apply orientation from image metadata if available.
+    pub respect_orientation: bool,
     /// Pixels per inch.
-    pub ppi:            Option<(f64, f64)>,
+    pub ppi:                 Option<(f64, f64)>,
 }
 
 impl PNGConfig {
@@ -34,19 +36,21 @@ impl PNGConfig {
     ///     crop: None,
     ///     shrink_only: true,
     ///     sharpen: -1f64,
+    ///     respect_orientation: false,
     ///     ppi: None,
     /// }
     /// ```
     #[inline]
     pub const fn new() -> PNGConfig {
         PNGConfig {
-            strip_metadata: true,
-            width:          0u16,
-            height:         0u16,
-            crop:           None,
-            shrink_only:    true,
-            sharpen:        -1f64,
-            ppi:            None,
+            strip_metadata:      true,
+            width:               0u16,
+            height:              0u16,
+            crop:                None,
+            shrink_only:         true,
+            sharpen:             -1f64,
+            respect_orientation: false,
+            ppi:                 None,
         }
     }
 }
@@ -87,6 +91,11 @@ impl ImageConfig for PNGConfig {
     #[inline]
     fn is_shrink_only(&self) -> bool {
         self.shrink_only
+    }
+
+    #[inline]
+    fn respect_orientation(&self) -> bool {
+        self.respect_orientation
     }
 }
 

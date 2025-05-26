@@ -10,15 +10,17 @@ use crate::{
 /// The output config of a RAW image with gray colors.
 pub struct GrayRawConfig {
     /// Remove the metadata stored in the input image.
-    pub strip_metadata:   bool,
+    pub strip_metadata:      bool,
     /// The width of the output image. `0` means the original width.
-    pub width:            u16,
+    pub width:               u16,
     /// The height of the output image. `0` means the original height.
-    pub height:           u16,
+    pub height:              u16,
     /// Crop the image.
-    pub crop:             Option<Crop>,
+    pub crop:                Option<Crop>,
+    /// Apply orientation from image metadata if available.
+    pub respect_orientation: bool,
     /// The color is used for fill up the alpha background.
-    pub background_color: Option<ColorName>,
+    pub background_color:    Option<ColorName>,
 }
 
 impl GrayRawConfig {
@@ -29,17 +31,19 @@ impl GrayRawConfig {
     ///     width: 0u16,
     ///     height: 0u16,
     ///     crop: None,
+    ///     respect_orientation: false,
     ///     background_color: None,
     /// }
     /// ```
     #[inline]
     pub const fn new() -> GrayRawConfig {
         GrayRawConfig {
-            strip_metadata:   true,
-            width:            0u16,
-            height:           0u16,
-            crop:             None,
-            background_color: None,
+            strip_metadata:      true,
+            width:               0u16,
+            height:              0u16,
+            crop:                None,
+            respect_orientation: false,
+            background_color:    None,
         }
     }
 }
@@ -80,6 +84,11 @@ impl ImageConfig for GrayRawConfig {
     #[inline]
     fn is_shrink_only(&self) -> bool {
         true
+    }
+
+    #[inline]
+    fn respect_orientation(&self) -> bool {
+        self.respect_orientation
     }
 }
 

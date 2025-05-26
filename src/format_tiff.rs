@@ -10,21 +10,23 @@ use crate::{
 /// The output config of a TIFF image.
 pub struct TIFFConfig {
     /// Remove the metadata stored in the input image.
-    pub strip_metadata:   bool,
+    pub strip_metadata:      bool,
     /// The width of the output image. `0` means the original width.
-    pub width:            u16,
+    pub width:               u16,
     /// The height of the output image. `0` means the original height.
-    pub height:           u16,
+    pub height:              u16,
     /// Crop the image.
-    pub crop:             Option<Crop>,
+    pub crop:                Option<Crop>,
     /// Only shrink the image, not to enlarge it.
-    pub shrink_only:      bool,
+    pub shrink_only:         bool,
     /// The higher the sharper. A negative value means auto adjustment.
-    pub sharpen:          f64,
+    pub sharpen:             f64,
+    /// Apply orientation from image metadata if available.
+    pub respect_orientation: bool,
     /// The color is used for fill up the alpha background.
-    pub background_color: Option<ColorName>,
+    pub background_color:    Option<ColorName>,
     /// Pixels per inch.
-    pub ppi:              Option<(f64, f64)>,
+    pub ppi:                 Option<(f64, f64)>,
 }
 
 impl TIFFConfig {
@@ -37,6 +39,7 @@ impl TIFFConfig {
     ///     crop: None,
     ///     shrink_only: true,
     ///     sharpen: -1f64,
+    ///     respect_orientation: false,
     ///     background_color: None,
     ///     ppi: None,
     /// }
@@ -44,14 +47,15 @@ impl TIFFConfig {
     #[inline]
     pub const fn new() -> TIFFConfig {
         TIFFConfig {
-            strip_metadata:   true,
-            width:            0u16,
-            height:           0u16,
-            crop:             None,
-            shrink_only:      true,
-            sharpen:          -1f64,
-            background_color: None,
-            ppi:              None,
+            strip_metadata:      true,
+            width:               0u16,
+            height:              0u16,
+            crop:                None,
+            shrink_only:         true,
+            sharpen:             -1f64,
+            respect_orientation: false,
+            background_color:    None,
+            ppi:                 None,
         }
     }
 }
@@ -92,6 +96,11 @@ impl ImageConfig for TIFFConfig {
     #[inline]
     fn is_shrink_only(&self) -> bool {
         self.shrink_only
+    }
+
+    #[inline]
+    fn respect_orientation(&self) -> bool {
+        self.respect_orientation
     }
 }
 

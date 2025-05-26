@@ -21,6 +21,8 @@ pub struct JPGConfig {
     pub shrink_only:               bool,
     /// The higher the sharper. A negative value means auto adjustment.
     pub sharpen:                   f64,
+    /// Apply orientation from image metadata if available.
+    pub respect_orientation:       bool,
     /// Use 4:2:0 (chroma quartered) subsampling to reduce the file size.
     pub force_to_chroma_quartered: bool,
     /// From 1 to 100, the higher the better.
@@ -41,6 +43,7 @@ impl JPGConfig {
     ///     crop: None,
     ///     shrink_only: true,
     ///     sharpen: -1f64,
+    ///     respect_orientation: false,
     ///     force_to_chroma_quartered: true,
     ///     quality: 85u8,
     ///     background_color: None,
@@ -56,6 +59,7 @@ impl JPGConfig {
             crop:                      None,
             shrink_only:               true,
             sharpen:                   -1f64,
+            respect_orientation:       false,
             force_to_chroma_quartered: true,
             quality:                   85u8,
             background_color:          None,
@@ -100,6 +104,11 @@ impl ImageConfig for JPGConfig {
     #[inline]
     fn is_shrink_only(&self) -> bool {
         self.shrink_only
+    }
+
+    #[inline]
+    fn respect_orientation(&self) -> bool {
+        self.respect_orientation
     }
 }
 

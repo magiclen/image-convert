@@ -12,6 +12,7 @@ pub trait ImageConfig: Debug {
     fn get_crop(&self) -> Option<Crop>;
     fn get_sharpen(&self) -> f64;
     fn is_shrink_only(&self) -> bool;
+    fn respect_orientation(&self) -> bool;
 }
 
 // Compute an appropriate sharpen value for the resized image.

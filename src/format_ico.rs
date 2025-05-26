@@ -5,12 +5,13 @@ use crate::{compute_output_size_sharpen, fetch_magic_wand, Crop, ImageConfig, Im
 
 #[derive(Debug)]
 struct ICOConfigInner {
-    strip_metadata: bool,
-    width:          u16,
-    height:         u16,
-    crop:           Option<Crop>,
-    shrink_only:    bool,
-    sharpen:        f64,
+    strip_metadata:      bool,
+    width:               u16,
+    height:              u16,
+    crop:                Option<Crop>,
+    shrink_only:         bool,
+    sharpen:             f64,
+    respect_orientation: bool,
 }
 
 impl ICOConfigInner {
@@ -25,6 +26,7 @@ impl ICOConfigInner {
                 crop: config.crop,
                 shrink_only: false,
                 sharpen: config.sharpen,
+                respect_orientation: config.respect_orientation,
             });
         }
 
@@ -36,13 +38,15 @@ impl ICOConfigInner {
 /// The output config of an ICO image.
 pub struct ICOConfig {
     /// Remove the metadata stored in the input image.
-    pub strip_metadata: bool,
+    pub strip_metadata:      bool,
     /// The size of the output image, made up of a width and a height. `0` means the original width or the original height.
-    pub size:           Vec<(u16, u16)>,
+    pub size:                Vec<(u16, u16)>,
     /// Crop the image.
-    pub crop:           Option<Crop>,
+    pub crop:                Option<Crop>,
     /// The higher the sharper. A negative value means auto adjustment.
-    pub sharpen:        f64,
+    pub sharpen:             f64,
+    /// Apply orientation from image metadata if available.
+    pub respect_orientation: bool,
 }
 
 impl ICOConfig {
@@ -53,15 +57,17 @@ impl ICOConfig {
     ///     size: Vec::with_capacity(1),
     ///     crop: None,
     ///     sharpen: -1f64,
+    ///     respect_orientation: false,
     /// }
     /// ```
     #[inline]
     pub fn new() -> ICOConfig {
         ICOConfig {
-            strip_metadata: true,
-            size:           Vec::with_capacity(1),
-            crop:           None,
-            sharpen:        -1f64,
+            strip_metadata:      true,
+            size:                Vec::with_capacity(1),
+            crop:                None,
+            sharpen:             -1f64,
+            respect_orientation: false,
         }
     }
 }
@@ -102,6 +108,11 @@ impl ImageConfig for ICOConfigInner {
     #[inline]
     fn is_shrink_only(&self) -> bool {
         self.shrink_only
+    }
+
+    #[inline]
+    fn respect_orientation(&self) -> bool {
+        self.respect_orientation
     }
 }
 

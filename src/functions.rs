@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use magick_rust::{MagickError, MagickWand};
+use magick_rust::{MagickError, MagickWand, OrientationType, PixelWand};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -31,6 +31,47 @@ static RE_WIDTH: Lazy<Regex> =
 static RE_HEIGHT: Lazy<Regex> =
     Lazy::new(|| Regex::new("(?i)([\\s\\S]*?[\\s]height[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap());
 
+fn handle_orientation(mw: &MagickWand) -> Result<(), MagickError> {
+    let orientation = mw.get_image_orientation();
+
+    match orientation {
+        // No rotation (normal)
+        OrientationType::Undefined | OrientationType::TopLeft => (),
+        // Horizontal flip
+        OrientationType::TopRight => {
+            mw.flop_image()?;
+        },
+        // Rotate 180°
+        OrientationType::BottomRight => {
+            mw.rotate_image(&PixelWand::new(), 180.0)?;
+        },
+        // Vertical flip
+        OrientationType::BottomLeft => {
+            mw.flip_image()?;
+        },
+        // Rotate 90° CCW + Vertical flip
+        OrientationType::LeftTop => {
+            mw.rotate_image(&PixelWand::new(), 270.0)?;
+            mw.flip_image()?;
+        },
+        // Rotate 90° CW
+        OrientationType::RightTop => {
+            mw.rotate_image(&PixelWand::new(), 90.0)?;
+        },
+        // Rotate 90° CW + Vertical flip
+        OrientationType::RightBottom => {
+            mw.rotate_image(&PixelWand::new(), 90.0)?;
+            mw.flip_image()?;
+        },
+        // Rotate 90° CCW
+        OrientationType::LeftBottom => {
+            mw.rotate_image(&PixelWand::new(), 270.0)?;
+        },
+    }
+
+    Ok(())
+}
+
 pub fn fetch_magic_wand(
     input: &ImageResource,
     config: &impl ImageConfig,
@@ -44,6 +85,10 @@ pub fn fetch_magic_wand(
             set_none_background!(mw);
 
             mw.read_image(p.as_str())?;
+
+            if config.respect_orientation() {
+                handle_orientation(&mw)?;
+            }
 
             if let Some(crop) = config.get_crop() {
                 handle_crop(&mw, crop)?;
