@@ -1,9 +1,9 @@
 [package]
 name = "image-convert"
-version = "0.20.1"
+version = "0.20.2"
 authors = ["Magic Len <len@magiclen.org>"]
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.81"
 repository = "https://github.com/magiclen/image-convert"
 homepage = "https://magiclen.org/image-convert"
 keywords = ["image", "interlacing", "resize", "imagemagick", "conversion"]
