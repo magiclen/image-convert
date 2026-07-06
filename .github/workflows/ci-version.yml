@@ -44,7 +44,7 @@ jobs:
           sudo make install
       - run: sudo ldconfig
         if: runner.os == 'Linux'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}
@@ -59,7 +59,7 @@ jobs:
           - ubuntu-latest
           # - macos-latest # jpeg will break things
         toolchain:
-          - "1.81"
+          - "1.85"
         features:
           -
     name: Test ${{ matrix.toolchain }} on ${{ matrix.os }} (${{ matrix.features }})
@@ -85,7 +85,7 @@ jobs:
           sudo make install
       - run: sudo ldconfig
         if: runner.os == 'Linux'
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}

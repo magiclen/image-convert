@@ -1,12 +1,11 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, sync::LazyLock};
 
 use magick_rust::{MagickError, MagickWand, OrientationType, PixelWand};
-use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::{
-    image_config::compute_output_size_if_different, Crop, ImageConfig, ImageResource,
-    START_CALL_ONCE,
+    Crop, ImageConfig, ImageResource, START_CALL_ONCE,
+    image_config::compute_output_size_if_different,
 };
 
 #[cfg(feature = "none-background")]
@@ -25,11 +24,13 @@ macro_rules! set_none_background {
 
 pub(crate) use set_none_background;
 
-static RE_SVG: Lazy<Regex> = Lazy::new(|| Regex::new("(?i)(<svg[\\s\\S]*?>)").unwrap());
-static RE_WIDTH: Lazy<Regex> =
-    Lazy::new(|| Regex::new("(?i)([\\s\\S]*?[\\s]width[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap());
-static RE_HEIGHT: Lazy<Regex> =
-    Lazy::new(|| Regex::new("(?i)([\\s\\S]*?[\\s]height[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap());
+static RE_SVG: LazyLock<Regex> = LazyLock::new(|| Regex::new("(?i)(<svg[\\s\\S]*?>)").unwrap());
+static RE_WIDTH: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new("(?i)([\\s\\S]*?[\\s]width[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap()
+});
+static RE_HEIGHT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new("(?i)([\\s\\S]*?[\\s]height[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap()
+});
 
 fn handle_orientation(mw: &MagickWand) -> Result<(), MagickError> {
     let orientation = mw.get_image_orientation();
@@ -234,21 +235,21 @@ fn fetch_magic_wand_inner(
                 None => None,
             };
 
-            if let Some((ts, te)) = t {
-                if svg[ts..te].ne(&new_width) {
-                    svg.replace_range(ts..te, &new_width);
+            if let Some((ts, te)) = t
+                && svg[ts..te].ne(&new_width)
+            {
+                svg.replace_range(ts..te, &new_width);
 
-                    let tl = te - ts;
-                    let l = new_height.len();
+                let tl = te - ts;
+                let l = new_height.len();
 
-                    match l.cmp(&tl) {
-                        Ordering::Greater => e += l - tl,
-                        Ordering::Less => e -= tl - l,
-                        Ordering::Equal => (),
-                    }
-
-                    reload = true;
+                match l.cmp(&tl) {
+                    Ordering::Greater => e += l - tl,
+                    Ordering::Less => e -= tl - l,
+                    Ordering::Equal => (),
                 }
+
+                reload = true;
             }
 
             let t = match RE_HEIGHT.captures(&svg[s..e]) {
@@ -263,12 +264,12 @@ fn fetch_magic_wand_inner(
                 None => None,
             };
 
-            if let Some((ts, te)) = t {
-                if svg[ts..te].ne(&new_height) {
-                    svg.replace_range(ts..te, &new_height);
+            if let Some((ts, te)) = t
+                && svg[ts..te].ne(&new_height)
+            {
+                svg.replace_range(ts..te, &new_height);
 
-                    reload = true;
-                }
+                reload = true;
             }
 
             if reload {
