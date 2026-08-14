@@ -15,8 +15,16 @@ include = ["src/**/*", "Cargo.toml", "README.md", "LICENSE"]
 [dependencies]
 ico = "0.5"
 magick_rust = "2"
+tokio = { version = "1", features = ["rt"], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [features]
 default = ["none-background"]
 
 none-background = []
+tokio = ["dep:tokio"]
+
+[package.metadata.docs.rs]
+all-features = true

@@ -75,6 +75,7 @@ jobs:
         with:
           toolchain: ${{ matrix.toolchain }}
       - run: cargo test ${{ matrix.features }}
+      - run: cargo test --features tokio ${{ matrix.features }}
       - run: cargo doc ${{ matrix.features }}
 
   MSRV:
