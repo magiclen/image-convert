@@ -88,6 +88,8 @@ let output = tokio::task::spawn_blocking(move || {
 Running conversions in parallel is safe, but keep in mind that ImageMagick already parallelizes internally with OpenMP and uses every core by default. Running many conversions at the same time oversubscribes the CPU, so limit the concurrency yourself, and consider `MagickWand::set_resource_limit(ResourceType::Thread, 1)` on Linux and macOS.
 */
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 #[cfg(feature = "tokio")]
 pub mod asynchronous;
 
