@@ -28,7 +28,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install librsvg2-dev libwebp-dev
-          wget https://imagemagick.org/archive/ImageMagick.tar.gz
+          wget https://download.imagemagick.org/archive/ImageMagick.tar.gz
           tar xf ImageMagick.tar.gz
           cd ImageMagick-*
           ./configure --enable-hdri --with-rsvg
@@ -73,7 +73,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install librsvg2-dev libwebp-dev
-          wget https://imagemagick.org/archive/ImageMagick.tar.gz
+          wget https://download.imagemagick.org/archive/ImageMagick.tar.gz
           tar xf ImageMagick.tar.gz
           cd ImageMagick-*
           ./configure --enable-hdri --with-rsvg
