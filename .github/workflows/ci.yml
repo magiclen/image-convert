@@ -41,7 +41,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          # - macos-latest # jpeg will break things
+          - macos-latest
         toolchain:
           - stable
           - nightly
@@ -50,26 +50,29 @@ jobs:
     name: Test ${{ matrix.toolchain }} on ${{ matrix.os }} (${{ matrix.features }})
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Install librsvg2 libwebp (Linux)
+      - name: Install ImageMagick (Linux)
         run: |
           sudo apt update
           sudo apt install librsvg2-dev libwebp-dev
-        if: runner.os == 'Linux'
-      - name: Install libwebp (macOS)
-        run: |
-          brew update
-          brew list webp || brew install webp
-        if: runner.os == 'macOS'
-      - name: Install ImageMagick
-        run: |
           wget https://imagemagick.org/archive/ImageMagick.tar.gz
           tar xf ImageMagick.tar.gz
           cd ImageMagick-*
           ./configure --enable-hdri --with-rsvg
           make -j$(nproc)
           sudo make install
-      - run: sudo ldconfig
+          sudo ldconfig
         if: runner.os == 'Linux'
+      # `imagemagick-full` is used because the `imagemagick` formula has no rsvg delegate.
+      # Homebrew links the delegates itself, which building from source on macOS fails to do.
+      - name: Install ImageMagick (macOS)
+        run: |
+          brew update
+          brew list pkgconf || brew install pkgconf
+          brew uninstall --ignore-dependencies imagemagick || true
+          brew install imagemagick-full
+          magick -version
+          pkg-config --modversion MagickWand
+        if: runner.os == 'macOS'
       - uses: actions/checkout@v7
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
@@ -84,7 +87,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          # - macos-latest # jpeg will break things
+          - macos-latest
         toolchain:
           - "1.85"
         features:
@@ -92,26 +95,29 @@ jobs:
     name: Test ${{ matrix.toolchain }} on ${{ matrix.os }} (${{ matrix.features }})
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Install librsvg2 libwebp (Linux)
+      - name: Install ImageMagick (Linux)
         run: |
           sudo apt update
           sudo apt install librsvg2-dev libwebp-dev
-        if: runner.os == 'Linux'
-      - name: Install libwebp (macOS)
-        run: |
-          brew update
-          brew list webp || brew install webp
-        if: runner.os == 'macOS'
-      - name: Install ImageMagick
-        run: |
           wget https://imagemagick.org/archive/ImageMagick.tar.gz
           tar xf ImageMagick.tar.gz
           cd ImageMagick-*
           ./configure --enable-hdri --with-rsvg
           make -j$(nproc)
           sudo make install
-      - run: sudo ldconfig
+          sudo ldconfig
         if: runner.os == 'Linux'
+      # `imagemagick-full` is used because the `imagemagick` formula has no rsvg delegate.
+      # Homebrew links the delegates itself, which building from source on macOS fails to do.
+      - name: Install ImageMagick (macOS)
+        run: |
+          brew update
+          brew list pkgconf || brew install pkgconf
+          brew uninstall --ignore-dependencies imagemagick || true
+          brew install imagemagick-full
+          magick -version
+          pkg-config --modversion MagickWand
+        if: runner.os == 'macOS'
       - uses: actions/checkout@v7
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
