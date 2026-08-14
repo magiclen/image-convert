@@ -1,20 +1,19 @@
-use magick_rust::{AlphaChannelOption, FilterType, MagickError, PixelWand, ResolutionType};
-use str_utils::EndsWithIgnoreAsciiCaseMultiple;
+use magick_rust::{FilterType, MagickError, ResolutionType};
 
 use crate::{
-    compute_output_size_sharpen, fetch_magic_wand, ColorName, Crop, ImageConfig, ImageResource,
-    InterlaceType,
+    Color, Crop, ImageResource, InterlaceType, compute_output_size_sharpen, fetch_magic_wand,
+    functions::handle_background_color, image_config::impl_image_config, write_output,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 /// The output config of a JPEG image.
 pub struct JPGConfig {
     /// Remove the metadata stored in the input image.
     pub strip_metadata:            bool,
     /// The width of the output image. `0` means the original width.
-    pub width:                     u16,
+    pub width:                     u32,
     /// The height of the output image. `0` means the original height.
-    pub height:                    u16,
+    pub height:                    u32,
     /// Crop the image.
     pub crop:                      Option<Crop>,
     /// Only shrink the image, not to enlarge it.
@@ -28,7 +27,7 @@ pub struct JPGConfig {
     /// From 1 to 100, the higher the better.
     pub quality:                   u8,
     /// The color is used for fill up the alpha background.
-    pub background_color:          Option<ColorName>,
+    pub background_color:          Option<Color>,
     /// Pixels per inch.
     pub ppi:                       Option<(f64, f64)>,
 }
@@ -38,8 +37,8 @@ impl JPGConfig {
     /// ```rust,ignore
     /// JPGConfig {
     ///     strip_metadata: true,
-    ///     width: 0u16,
-    ///     height: 0u16,
+    ///     width: 0u32,
+    ///     height: 0u32,
     ///     crop: None,
     ///     shrink_only: true,
     ///     sharpen: -1f64,
@@ -54,8 +53,8 @@ impl JPGConfig {
     pub const fn new() -> JPGConfig {
         JPGConfig {
             strip_metadata:            true,
-            width:                     0u16,
-            height:                    0u16,
+            width:                     0u32,
+            height:                    0u32,
             crop:                      None,
             shrink_only:               true,
             sharpen:                   -1f64,
@@ -75,42 +74,7 @@ impl Default for JPGConfig {
     }
 }
 
-impl ImageConfig for JPGConfig {
-    #[inline]
-    fn is_strip_metadata(&self) -> bool {
-        self.strip_metadata
-    }
-
-    #[inline]
-    fn get_width(&self) -> u16 {
-        self.width
-    }
-
-    #[inline]
-    fn get_height(&self) -> u16 {
-        self.height
-    }
-
-    #[inline]
-    fn get_crop(&self) -> Option<Crop> {
-        self.crop
-    }
-
-    #[inline]
-    fn get_sharpen(&self) -> f64 {
-        self.sharpen
-    }
-
-    #[inline]
-    fn is_shrink_only(&self) -> bool {
-        self.shrink_only
-    }
-
-    #[inline]
-    fn respect_orientation(&self) -> bool {
-        self.respect_orientation
-    }
-}
+impl_image_config!(JPGConfig);
 
 /// Convert an image to a JPEG image.
 pub fn to_jpg(
@@ -120,11 +84,8 @@ pub fn to_jpg(
 ) -> Result<(), MagickError> {
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
-    if let Some(background_color) = config.background_color {
-        let mut pw = PixelWand::new();
-        pw.set_color(background_color.as_str())?;
-        mw.set_image_background_color(&pw)?;
-        mw.set_image_alpha_channel(AlphaChannelOption::Remove)?;
+    if let Some(background_color) = config.background_color.as_ref() {
+        handle_background_color(&mut mw, background_color)?;
     }
 
     if !vector {
@@ -154,22 +115,5 @@ pub fn to_jpg(
         mw.set_image_units(ResolutionType::PixelsPerInch)?;
     }
 
-    match output {
-        ImageResource::Path(p) => {
-            if p.ends_with_ignore_ascii_case_with_lowercase_multiple(&[".jpg", ".jpeg"]).is_none() {
-                return Err("The file extension name is not jpg or jpeg.".into());
-            }
-
-            mw.write_image(p.as_str())?;
-        },
-        ImageResource::Data(b) => {
-            let mut temp = mw.write_image_blob("JPEG")?;
-            b.append(&mut temp);
-        },
-        ImageResource::MagickWand(mw_2) => {
-            *mw_2 = mw;
-        },
-    }
-
-    Ok(())
+    write_output(output, mw, &["jpg", "jpeg"], "JPEG")
 }

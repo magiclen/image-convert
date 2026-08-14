@@ -1,11 +1,10 @@
-use std::{cmp::Ordering, sync::LazyLock};
+use std::{cmp::Reverse, fs, ops::Range, path::Path, str};
 
-use magick_rust::{MagickError, MagickWand, OrientationType, PixelWand};
-use regex::Regex;
+use magick_rust::{AlphaChannelOption, MagickError, MagickWand, PixelWand};
 
 use crate::{
-    Crop, ImageConfig, ImageResource, START_CALL_ONCE,
-    image_config::compute_output_size_if_different,
+    Color, Crop, ImageConfig, ImageResource, image_config::compute_output_size_if_different,
+    start_call_once,
 };
 
 #[cfg(feature = "none-background")]
@@ -24,62 +23,16 @@ macro_rules! set_none_background {
 
 pub(crate) use set_none_background;
 
-static RE_SVG: LazyLock<Regex> = LazyLock::new(|| Regex::new("(?i)(<svg[\\s\\S]*?>)").unwrap());
-static RE_WIDTH: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new("(?i)([\\s\\S]*?[\\s]width[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap()
-});
-static RE_HEIGHT: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new("(?i)([\\s\\S]*?[\\s]height[\\s]*=[\\s]*\"([\\s\\S]*?)\")").unwrap()
-});
-
-fn handle_orientation(mw: &MagickWand) -> Result<(), MagickError> {
-    let orientation = mw.get_image_orientation();
-
-    match orientation {
-        // No rotation (normal)
-        OrientationType::Undefined | OrientationType::TopLeft => (),
-        // Horizontal flip
-        OrientationType::TopRight => {
-            mw.flop_image()?;
-        },
-        // Rotate 180°
-        OrientationType::BottomRight => {
-            mw.rotate_image(&PixelWand::new(), 180.0)?;
-        },
-        // Vertical flip
-        OrientationType::BottomLeft => {
-            mw.flip_image()?;
-        },
-        // Rotate 90° CCW + Vertical flip
-        OrientationType::LeftTop => {
-            mw.rotate_image(&PixelWand::new(), 270.0)?;
-            mw.flip_image()?;
-        },
-        // Rotate 90° CW
-        OrientationType::RightTop => {
-            mw.rotate_image(&PixelWand::new(), 90.0)?;
-        },
-        // Rotate 90° CW + Vertical flip
-        OrientationType::RightBottom => {
-            mw.rotate_image(&PixelWand::new(), 90.0)?;
-            mw.flip_image()?;
-        },
-        // Rotate 90° CCW
-        OrientationType::LeftBottom => {
-            mw.rotate_image(&PixelWand::new(), 270.0)?;
-        },
-    }
-
-    Ok(())
-}
-
+/// Read an image from the input resource, and apply the orientation and the crop settings of the config to it.
+///
+/// The returned boolean indicates whether the image has already been rendered in the output size. If it is `true`, resizing the image again is unnecessary.
 pub fn fetch_magic_wand(
     input: &ImageResource,
     config: &impl ImageConfig,
 ) -> Result<(MagickWand, bool), MagickError> {
-    START_CALL_ONCE();
+    start_call_once();
 
-    match input {
+    let mw = match input {
         ImageResource::Path(p) => {
             let mw = MagickWand::new();
 
@@ -87,41 +40,7 @@ pub fn fetch_magic_wand(
 
             mw.read_image(p.as_str())?;
 
-            if config.respect_orientation() {
-                handle_orientation(&mw)?;
-            }
-
-            if let Some(crop) = config.get_crop() {
-                handle_crop(&mw, crop)?;
-            }
-
-            let format = mw.get_image_format()?;
-
-            match format.as_str() {
-                "SVG" | "MVG" => {
-                    match compute_output_size_if_different(&mw, config) {
-                        Some((new_width, new_height)) => {
-                            let original_width = mw.get_image_width() as u16;
-
-                            if new_width < original_width {
-                                // TODO ImageMagick handles the smaller size of SVG poorly, so just do resize
-                                Ok((mw, false))
-                            } else {
-                                use std::fs;
-
-                                match fs::read_to_string(p) {
-                                    Ok(svg) => {
-                                        fetch_magic_wand_inner(mw, new_width, new_height, svg)
-                                    },
-                                    Err(_) => Ok((mw, false)),
-                                }
-                            }
-                        },
-                        None => Ok((mw, true)),
-                    }
-                },
-                _ => Ok((mw, false)),
-            }
+            mw
         },
         ImageResource::Data(b) => {
             let mw = MagickWand::new();
@@ -130,45 +49,230 @@ pub fn fetch_magic_wand(
 
             mw.read_image_blob(b)?;
 
-            if let Some(crop) = config.get_crop() {
-                handle_crop(&mw, crop)?;
-            }
-
-            let format = mw.get_image_format()?;
-
-            match format.as_str() {
-                "SVG" | "MVG" => {
-                    match compute_output_size_if_different(&mw, config) {
-                        Some((new_width, new_height)) => {
-                            let original_width = mw.get_image_width() as u16;
-
-                            if new_width < original_width {
-                                // TODO ImageMagick handles the smaller size of SVG poorly, so just do resize
-                                Ok((mw, false))
-                            } else {
-                                match String::from_utf8(b.to_vec()) {
-                                    Ok(svg) => {
-                                        fetch_magic_wand_inner(mw, new_width, new_height, svg)
-                                    },
-                                    Err(_) => Ok((mw, false)),
-                                }
-                            }
-                        },
-                        None => Ok((mw, true)),
-                    }
-                },
-                _ => Ok((mw, false)),
-            }
+            mw
         },
-        ImageResource::MagickWand(mw) => {
-            let mw = mw.clone();
+        ImageResource::MagickWand(mw) => mw.clone(),
+    };
 
-            if let Some(crop) = config.get_crop() {
-                handle_crop(&mw, crop)?;
+    // a vector image has to be re-rendered before being cropped, otherwise the crop result would be thrown away
+    let (mw, vector) = if config.crop().is_none() {
+        fetch_vector_magic_wand(mw, input, config)?
+    } else {
+        (mw, false)
+    };
+
+    if config.respect_orientation() && !mw.auto_orient() {
+        return Err("Cannot apply the orientation of the image.".into());
+    }
+
+    if let Some(crop) = config.crop() {
+        handle_crop(&mw, crop)?;
+    }
+
+    Ok((mw, vector))
+}
+
+// Re-render a vector image in the output size by rewriting its width and height, which keeps the image sharp.
+fn fetch_vector_magic_wand(
+    mw: MagickWand,
+    input: &ImageResource,
+    config: &impl ImageConfig,
+) -> Result<(MagickWand, bool), MagickError> {
+    match mw.get_image_format()?.as_str() {
+        "SVG" | "MVG" => (),
+        _ => return Ok((mw, false)),
+    }
+
+    let Some((new_width, new_height)) = compute_output_size_if_different(&mw, config) else {
+        return Ok((mw, true));
+    };
+
+    if new_width < mw.get_image_width() as u32 {
+        // TODO ImageMagick handles the smaller size of SVG poorly, so just do resize
+        return Ok((mw, false));
+    }
+
+    match input {
+        ImageResource::Path(p) => match fs::read_to_string(p) {
+            Ok(svg) => resize_svg(mw, svg.as_str(), new_width, new_height),
+            Err(_) => Ok((mw, false)),
+        },
+        ImageResource::Data(b) => match str::from_utf8(b) {
+            Ok(svg) => resize_svg(mw, svg, new_width, new_height),
+            Err(_) => Ok((mw, false)),
+        },
+        ImageResource::MagickWand(_) => Ok((mw, false)),
+    }
+}
+
+fn resize_svg(
+    mw: MagickWand,
+    svg: &str,
+    new_width: u32,
+    new_height: u32,
+) -> Result<(MagickWand, bool), MagickError> {
+    let Some(tag) = find_svg_tag(svg) else {
+        return Ok((mw, false));
+    };
+
+    let new_width = format!("{new_width}px");
+    let new_height = format!("{new_height}px");
+
+    let mut replacements = Vec::with_capacity(2);
+
+    for (name, value) in [("width", new_width), ("height", new_height)] {
+        if let Some(range) = find_attribute_value(&svg[tag.clone()], name) {
+            let range = (tag.start + range.start)..(tag.start + range.end);
+
+            if svg[range.clone()] != value {
+                replacements.push((range, value));
+            }
+        }
+    }
+
+    if replacements.is_empty() {
+        return Ok((mw, false));
+    }
+
+    // replace from the tail so that the ranges in front of the replaced one stay valid
+    replacements.sort_by_key(|(range, _)| Reverse(range.start));
+
+    let mut svg = svg.to_string();
+
+    for (range, value) in replacements {
+        svg.replace_range(range, value.as_str());
+    }
+
+    let new_mw = MagickWand::new();
+
+    set_none_background!(new_mw);
+
+    match new_mw.read_image_blob(svg.into_bytes()) {
+        Ok(_) => Ok((new_mw, true)),
+        Err(_) => Ok((mw, false)),
+    }
+}
+
+// Find the range of the attribute part of the `<svg ...>` start tag.
+fn find_svg_tag(svg: &str) -> Option<Range<usize>> {
+    let bytes = svg.as_bytes();
+
+    let mut index = 0;
+
+    while index + 4 <= bytes.len() {
+        if bytes[index] == b'<' && bytes[index + 1..index + 4].eq_ignore_ascii_case(b"svg") {
+            let attributes_start = index + 4;
+
+            // the tag name has to be exactly `svg`
+            if attributes_start == bytes.len()
+                || bytes[attributes_start].is_ascii_whitespace()
+                || matches!(bytes[attributes_start], b'>' | b'/')
+            {
+                return find_tag_end(bytes, attributes_start).map(|end| attributes_start..end);
+            }
+        }
+
+        index += 1;
+    }
+
+    None
+}
+
+// Find the `>` which closes a start tag, ignoring the one inside a quoted value.
+fn find_tag_end(bytes: &[u8], mut index: usize) -> Option<usize> {
+    while index < bytes.len() {
+        match bytes[index] {
+            b'>' => return Some(index),
+            quote @ (b'"' | b'\'') => {
+                index += 1;
+
+                while index < bytes.len() && bytes[index] != quote {
+                    index += 1;
+                }
+            },
+            _ => (),
+        }
+
+        index += 1;
+    }
+
+    None
+}
+
+// Find the range of the value of the attribute with the given name. The name is compared in a case-insensitive way.
+fn find_attribute_value(attributes: &str, name: &str) -> Option<Range<usize>> {
+    let bytes = attributes.as_bytes();
+
+    let mut index = 0;
+
+    loop {
+        while index < bytes.len()
+            && (bytes[index].is_ascii_whitespace() || matches!(bytes[index], b'/' | b'?'))
+        {
+            index += 1;
+        }
+
+        let name_start = index;
+
+        while index < bytes.len()
+            && !bytes[index].is_ascii_whitespace()
+            && !matches!(bytes[index], b'=' | b'/')
+        {
+            index += 1;
+        }
+
+        if index == name_start {
+            // there is nothing which can be parsed as an attribute name
+            return None;
+        }
+
+        let matched = attributes[name_start..index].eq_ignore_ascii_case(name);
+
+        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
+            index += 1;
+        }
+
+        if index == bytes.len() || bytes[index] != b'=' {
+            // an attribute without a value
+            continue;
+        }
+
+        index += 1;
+
+        while index < bytes.len() && bytes[index].is_ascii_whitespace() {
+            index += 1;
+        }
+
+        if index == bytes.len() {
+            return None;
+        }
+
+        let value_start;
+
+        if let quote @ (b'"' | b'\'') = bytes[index] {
+            index += 1;
+            value_start = index;
+
+            while index < bytes.len() && bytes[index] != quote {
+                index += 1;
             }
 
-            Ok((mw, false))
-        },
+            if matched {
+                return Some(value_start..index);
+            }
+
+            index += 1;
+        } else {
+            value_start = index;
+
+            while index < bytes.len() && !bytes[index].is_ascii_whitespace() {
+                index += 1;
+            }
+
+            if matched {
+                return Some(value_start..index);
+            }
+        }
     }
 }
 
@@ -177,7 +281,7 @@ fn handle_crop(mw: &MagickWand, crop: Crop) -> Result<(), MagickError> {
         Crop::Center(w, h) => {
             let r = w / h;
 
-            if r.is_nan() || r.is_infinite() || r == 0f64 {
+            if r.is_nan() || r.is_infinite() || r <= 0f64 {
                 return Err("The ratio of CenterCrop is incorrect.".into());
             }
 
@@ -205,88 +309,53 @@ fn handle_crop(mw: &MagickWand, crop: Crop) -> Result<(), MagickError> {
     Ok(())
 }
 
-fn fetch_magic_wand_inner(
+// Fill up the alpha background of the image with the given color.
+pub(crate) fn handle_background_color(
+    mw: &mut MagickWand,
+    color: &Color,
+) -> Result<(), MagickError> {
+    let mut pw = PixelWand::new();
+
+    pw.set_color(color.to_magick_color().as_ref())?;
+
+    mw.set_image_background_color(&pw)?;
+    mw.set_image_alpha_channel(AlphaChannelOption::Remove)?;
+
+    Ok(())
+}
+
+// Write the image out to the output resource. `extensions` are the file extension names allowed by the output format.
+pub(crate) fn write_output(
+    output: &mut ImageResource,
     mw: MagickWand,
-    new_width: u16,
-    new_height: u16,
-    mut svg: String,
-) -> Result<(MagickWand, bool), MagickError> {
-    let result = match RE_SVG.captures(&svg) {
-        Some(captures) => {
-            let target = captures.get(1).unwrap();
-
-            let s = target.start() + 4;
-            let mut e = target.end() - 1;
-
-            let mut reload = false;
-
-            let new_width = format!("{new_width}px");
-            let new_height = format!("{new_height}px");
-
-            let t = match RE_WIDTH.captures(&svg[s..e]) {
-                Some(captures) => {
-                    let target = captures.get(2).unwrap();
-
-                    let ts = target.start() + s;
-                    let te = target.end() + s;
-
-                    Some((ts, te))
-                },
-                None => None,
-            };
-
-            if let Some((ts, te)) = t
-                && svg[ts..te].ne(&new_width)
-            {
-                svg.replace_range(ts..te, &new_width);
-
-                let tl = te - ts;
-                let l = new_height.len();
-
-                match l.cmp(&tl) {
-                    Ordering::Greater => e += l - tl,
-                    Ordering::Less => e -= tl - l,
-                    Ordering::Equal => (),
-                }
-
-                reload = true;
+    extensions: &[&str],
+    format: &str,
+) -> Result<(), MagickError> {
+    match output {
+        ImageResource::Path(p) => {
+            if !has_extension(p.as_str(), extensions) {
+                return Err(MagickError(format!(
+                    "The file extension name is not {}.",
+                    extensions.join(" or ")
+                )));
             }
 
-            let t = match RE_HEIGHT.captures(&svg[s..e]) {
-                Some(captures) => {
-                    let target = captures.get(2).unwrap();
-
-                    let ts = target.start() + s;
-                    let te = target.end() + s;
-
-                    Some((ts, te))
-                },
-                None => None,
-            };
-
-            if let Some((ts, te)) = t
-                && svg[ts..te].ne(&new_height)
-            {
-                svg.replace_range(ts..te, &new_height);
-
-                reload = true;
-            }
-
-            if reload {
-                let new_mw = MagickWand::new();
-
-                set_none_background!(new_mw);
-
-                match new_mw.read_image_blob(svg.into_bytes()) {
-                    Ok(_) => (new_mw, true),
-                    Err(_) => (mw, false),
-                }
-            } else {
-                (mw, false)
-            }
+            mw.write_image(p.as_str())?;
         },
-        None => (mw, false),
-    };
+        ImageResource::Data(b) => {
+            b.append(&mut mw.write_image_blob(format)?);
+        },
+        ImageResource::MagickWand(mw_2) => {
+            *mw_2 = mw;
+        },
+    }
 
-    Ok(result)
+    Ok(())
+}
+
+pub(crate) fn has_extension(path: &str, extensions: &[&str]) -> bool {
+    match Path::new(path).extension() {
+        Some(extension) => extensions.iter().any(|e| extension.eq_ignore_ascii_case(e)),
+        None => false,
+    }
 }

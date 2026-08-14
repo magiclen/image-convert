@@ -8,18 +8,18 @@ This crate is a high level library using **MagickWand** (ImageMagick) for image 
 Identify an image.
 
 ```rust,ignore
-use image_convert::{ImageResource, InterlaceType, identify};
+use image_convert::{ImageResource, InterlaceType, identify_read};
 
 let input = ImageResource::from_path("tests/data/P1060382.JPG");
 
 let mut output = None;
 
-let id = identify(&mut output, &input).unwrap();
+let id = identify_read(&mut output, &input).unwrap();
 
 assert_eq!(4592, id.resolution.width);
 assert_eq!(2584, id.resolution.height);
 assert_eq!("JPEG", id.format);
-assert_eq!(InterlaceType::NoInterlace, id.interlace);
+assert_eq!(InterlaceType::No, id.interlace);
 ```
 
 Convert an image to a PNG image and also resize it.
@@ -47,8 +47,7 @@ to_png(&mut output, &input, &config).unwrap();
 Supported output formats are `BMP`, `JPG`, `PNG`, `GIF`, `TIFF`, `WEBP`, `ICO`, `PGM` and `GrayRaw`.
 */
 
-pub extern crate magick_rust;
-
+mod color;
 mod color_name;
 mod crop;
 mod format_bmp;
@@ -68,6 +67,7 @@ mod interlace_type;
 
 use std::sync::Once;
 
+pub use color::*;
 pub use color_name::*;
 pub use crop::*;
 pub use format_bmp::*;
@@ -85,13 +85,12 @@ pub use image_config::*;
 pub use image_resource::*;
 pub use interlace_type::InterlaceType;
 use magick_rust::magick_wand_genesis;
-pub use magick_rust::MagickError;
+pub use magick_rust::{self, MagickError};
 
 static START: Once = Once::new();
 
-/// Call this function before using **MagickWand**.
-pub static START_CALL_ONCE: fn() = || {
-    START.call_once(|| {
-        magick_wand_genesis();
-    });
-};
+/// Initialize **MagickWand**. Every function in this crate calls it before using **MagickWand**, so usually there is no need to call it by yourself.
+#[inline]
+pub fn start_call_once() {
+    START.call_once(magick_wand_genesis);
+}

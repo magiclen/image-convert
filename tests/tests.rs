@@ -1,9 +1,9 @@
 use std::path::Path;
 
 use image_convert::{
-    identify_ping, to_bmp, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
     BMPConfig, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig,
-    PGMConfig, PNGConfig, TIFFConfig, WEBPConfig,
+    PGMConfig, PNGConfig, TIFFConfig, WEBPConfig, identify_ping, to_bmp, to_gif, to_gray_raw,
+    to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
 };
 
 const INPUT_IMAGE_PATH: &str = r"tests/data/P1060382.JPG";
@@ -132,11 +132,11 @@ fn to_ico_file2file() {
 
     let mut config = ICOConfig::new();
 
-    config.size.push((256u16, 256u16));
-    config.size.push((16u16, 16u16));
-    config.size.push((128u16, 128u16));
-    config.size.push((64u16, 64u16));
-    config.size.push((32u16, 32u16));
+    config.size.push((256u32, 256u32));
+    config.size.push((16u32, 16u32));
+    config.size.push((128u32, 128u32));
+    config.size.push((64u32, 64u32));
+    config.size.push((32u32, 32u32));
 
     let input = ImageResource::from_path(source_image_path);
 

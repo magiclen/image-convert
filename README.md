@@ -10,18 +10,18 @@ This crate is a high level library using **MagickWand** (ImageMagick) for image 
 Identify an image.
 
 ```rust
-use image_convert::{ImageResource, InterlaceType, identify};
+use image_convert::{ImageResource, InterlaceType, identify_read};
 
 let input = ImageResource::from_path("tests/data/P1060382.JPG");
 
 let mut output = None;
 
-let id = identify(&mut output, &input).unwrap();
+let id = identify_read(&mut output, &input).unwrap();
 
 assert_eq!(4592, id.resolution.width);
 assert_eq!(2584, id.resolution.height);
 assert_eq!("JPEG", id.format);
-assert_eq!(InterlaceType::NoInterlace, id.interlace);
+assert_eq!(InterlaceType::No, id.interlace);
 ```
 
 Convert an image to a PNG image and also resize it.

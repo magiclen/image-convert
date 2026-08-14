@@ -22,6 +22,17 @@ pub enum ColorName {
 }
 
 impl ColorName {
+    const ALL: [ColorName; 8] = [
+        Self::White,
+        Self::Black,
+        Self::Red,
+        Self::Green,
+        Self::Blue,
+        Self::Yellow,
+        Self::Cyan,
+        Self::Magenta,
+    ];
+
     /// Get the static string slice of this color name.
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -36,21 +47,11 @@ impl ColorName {
         }
     }
 
-    /// Get the static string slice of this color name.
+    /// Parse a color name in a case-insensitive way.
     pub fn parse_str<S: AsRef<str>>(s: S) -> Option<Self> {
-        let s = s.as_ref().to_lowercase();
+        let s = s.as_ref();
 
-        match s.as_str() {
-            "white" => Some(Self::White),
-            "black" => Some(Self::Black),
-            "red" => Some(Self::Red),
-            "green" => Some(Self::Green),
-            "blue" => Some(Self::Blue),
-            "yellow" => Some(Self::Yellow),
-            "cyan" => Some(Self::Cyan),
-            "magenta" => Some(Self::Magenta),
-            _ => None,
-        }
+        Self::ALL.into_iter().find(|name| s.eq_ignore_ascii_case(name.as_str()))
     }
 }
 

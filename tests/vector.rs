@@ -1,12 +1,13 @@
 use std::path::Path;
 
 use image_convert::{
-    identify_ping, to_bmp, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
-    BMPConfig, ColorName, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType,
-    JPGConfig, PGMConfig, PNGConfig, TIFFConfig, WEBPConfig,
+    BMPConfig, Color, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig,
+    PGMConfig, PNGConfig, TIFFConfig, WEBPConfig, identify_ping, to_bmp, to_gif, to_gray_raw,
+    to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
 };
 
 const INPUT_IMAGE_PATH: &str = r"tests/data/dropbox.svg";
+const INPUT_RECT_IMAGE_PATH: &str = r"tests/data/rect.svg";
 
 #[test]
 fn get_identify() {
@@ -32,7 +33,7 @@ fn to_bmp_file2file() {
     config.width = 1920;
     config.height = 1920;
     config.shrink_only = false;
-    config.background_color = Some(ColorName::Green);
+    config.background_color = Some(Color::GREEN);
 
     let input = ImageResource::from_path(source_image_path);
 
@@ -95,6 +96,29 @@ fn to_png_file2file_small() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_png(&mut output, &input, &config).unwrap();
+}
+
+#[test]
+fn to_png_file2file_rect() {
+    let source_image_path = Path::new(INPUT_RECT_IMAGE_PATH);
+
+    let target_image_path = Path::join(source_image_path.parent().unwrap(), "rect_output.png");
+
+    let mut config = PNGConfig::new();
+
+    config.width = 1920;
+    config.shrink_only = false;
+
+    let input = ImageResource::from_path(source_image_path);
+
+    let mut output = ImageResource::from_path(&target_image_path);
+
+    to_png(&mut output, &input, &config).unwrap();
+
+    let id = identify_ping(&ImageResource::from_path(target_image_path)).unwrap();
+
+    assert_eq!(1920, id.resolution.width);
+    assert_eq!(960, id.resolution.height);
 }
 
 #[test]
@@ -162,11 +186,29 @@ fn to_ico_file2file() {
 
     let mut config = ICOConfig::new();
 
-    config.size.push((256u16, 256u16));
-    config.size.push((16u16, 16u16));
-    config.size.push((128u16, 128u16));
-    config.size.push((64u16, 64u16));
-    config.size.push((32u16, 32u16));
+    config.size.push((256u32, 256u32));
+    config.size.push((16u32, 16u32));
+    config.size.push((128u32, 128u32));
+    config.size.push((64u32, 64u32));
+    config.size.push((32u32, 32u32));
+
+    let input = ImageResource::from_path(source_image_path);
+
+    let mut output = ImageResource::from_path(target_image_path);
+
+    to_ico(&mut output, &input, &config).unwrap();
+}
+
+#[test]
+fn to_ico_file2file_rect() {
+    let source_image_path = Path::new(INPUT_RECT_IMAGE_PATH);
+
+    let target_image_path = Path::join(source_image_path.parent().unwrap(), "rect_output.ico");
+
+    let mut config = ICOConfig::new();
+
+    config.size.push((256u32, 256u32));
+    config.size.push((32u32, 32u32));
 
     let input = ImageResource::from_path(source_image_path);
 
