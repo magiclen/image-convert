@@ -53,7 +53,7 @@ To use this crate from async code, run it on a blocking thread pool. Enable the 
 
 ```toml
 [dependencies]
-image-convert = { version = "0.21", features = ["tokio"] }
+image-convert = { version = "*", features = ["tokio"] }
 ```
 
 ```rust
