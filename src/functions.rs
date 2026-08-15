@@ -1,9 +1,10 @@
 use std::{cmp::Reverse, fs, ops::Range, path::Path, str};
 
-use magick_rust::{AlphaChannelOption, MagickError, MagickWand, PixelWand};
+use magick_rust::{AlphaChannelOption, FilterType, MagickError, MagickWand, PixelWand};
 
 use crate::{
-    Color, Crop, ImageConfig, ImageResource, image_config::compute_output_size_if_different,
+    Color, Crop, ImageConfig, ImageResource,
+    image_config::{compute_output_size_if_different, compute_output_size_sharpen},
     start_call_once,
 };
 
@@ -61,7 +62,8 @@ pub fn fetch_magic_wand(
         (mw, false)
     };
 
-    if config.respect_orientation() && !mw.auto_orient() {
+    // `auto_orient` clones the whole image even when the orientation is already top-left
+    if config.respect_orientation() && mw.requires_orientation() && !mw.auto_orient() {
         return Err("Cannot apply the orientation of the image.".into());
     }
 
@@ -115,12 +117,12 @@ fn resize_svg(
         return Ok((mw, false));
     };
 
-    let new_width = format!("{new_width}px");
-    let new_height = format!("{new_height}px");
+    let width_value = format!("{new_width}px");
+    let height_value = format!("{new_height}px");
 
     let mut replacements = Vec::with_capacity(2);
 
-    for (name, value) in [("width", new_width), ("height", new_height)] {
+    for (name, value) in [("width", width_value), ("height", height_value)] {
         if let Some(range) = find_attribute_value(&svg[tag.clone()], name) {
             let range = (tag.start + range.start)..(tag.start + range.end);
 
@@ -148,7 +150,13 @@ fn resize_svg(
     set_none_background!(new_mw);
 
     match new_mw.read_image_blob(svg.into_bytes()) {
-        Ok(_) => Ok((new_mw, true)),
+        Ok(_) => {
+            // the replaced attributes are not always the ones which decide the rendered size, so the result has to be checked
+            let rendered = new_mw.get_image_width() as u32 == new_width
+                && new_mw.get_image_height() as u32 == new_height;
+
+            Ok((new_mw, rendered))
+        },
         Err(_) => Ok((mw, false)),
     }
 }
@@ -303,7 +311,29 @@ fn handle_crop(mw: &MagickWand, crop: Crop) -> Result<(), MagickError> {
             let y = (original_height - new_height) / 2;
 
             mw.crop_image(new_width, new_height, x as isize, y as isize)?;
+
+            // cropping keeps the original canvas size and the crop offset in the page geometry, which formats like GIF would store
+            mw.reset_image_page("")?;
         },
+    }
+
+    Ok(())
+}
+
+// Resize the image to the size computed from the config, and then sharpen it.
+pub(crate) fn resize_and_sharpen(
+    mw: &MagickWand,
+    config: &impl ImageConfig,
+) -> Result<(), MagickError> {
+    let (width, height, sharpen) = compute_output_size_sharpen(mw, config);
+
+    // ImageMagick skips a resize with the same size only when the filter is undefined, so it has to be skipped here
+    if width as usize != mw.get_image_width() || height as usize != mw.get_image_height() {
+        mw.resize_image(width as usize, height as usize, FilterType::Lanczos)?;
+    }
+
+    if sharpen > 0f64 {
+        mw.sharpen_image(0f64, sharpen)?;
     }
 
     Ok(())
@@ -343,7 +373,7 @@ pub(crate) fn write_output(
             mw.write_image(p.as_str())?;
         },
         ImageResource::Data(b) => {
-            b.append(&mut mw.write_image_blob(format)?);
+            *b = mw.write_image_blob(format)?;
         },
         ImageResource::MagickWand(mw_2) => {
             *mw_2 = mw;

@@ -32,6 +32,8 @@ impl ImageResource {
     }
 
     /// Create an empty image resource with a specific capacity.
+    ///
+    /// The capacity is not reused when this resource is used as an output resource, because the output data is a newly allocated vec.
     pub fn with_capacity(capacity: usize) -> ImageResource {
         ImageResource::Data(Vec::with_capacity(capacity))
     }

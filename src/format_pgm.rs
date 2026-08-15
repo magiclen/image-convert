@@ -1,8 +1,10 @@
-use magick_rust::{FilterType, MagickError};
+use magick_rust::MagickError;
 
 use crate::{
-    Color, Crop, ImageResource, InterlaceType, compute_output_size_sharpen, fetch_magic_wand,
-    functions::handle_background_color, image_config::impl_image_config, write_output,
+    Color, Crop, ImageResource, InterlaceType, fetch_magic_wand,
+    functions::{handle_background_color, resize_and_sharpen},
+    image_config::impl_image_config,
+    write_output,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -77,11 +79,7 @@ pub fn to_pgm(
     }
 
     if !vector {
-        let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
-
-        mw.resize_image(width as usize, height as usize, FilterType::Lanczos)?;
-
-        mw.sharpen_image(0f64, sharpen)?;
+        resize_and_sharpen(&mw, config)?;
     }
 
     if config.strip_metadata {

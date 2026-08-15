@@ -1,9 +1,10 @@
 use std::fs::File;
 
-use magick_rust::{FilterType, MagickError, MagickWand};
+use magick_rust::{MagickError, MagickWand};
 
 use crate::{
-    Crop, ImageResource, compute_output_size_sharpen, fetch_magic_wand, functions::has_extension,
+    Crop, ImageResource, fetch_magic_wand,
+    functions::{has_extension, resize_and_sharpen},
     image_config::impl_image_config,
 };
 
@@ -19,22 +20,38 @@ struct ICOConfigInner {
 }
 
 impl ICOConfigInner {
-    pub fn from(config: &ICOConfig) -> Vec<ICOConfigInner> {
-        let mut output = Vec::with_capacity(config.size.len());
+    fn new(config: &ICOConfig, width: u32, height: u32) -> ICOConfigInner {
+        ICOConfigInner {
+            strip_metadata: config.strip_metadata,
+            width,
+            height,
+            crop: config.crop,
+            shrink_only: false,
+            sharpen: config.sharpen,
+            respect_orientation: config.respect_orientation,
+        }
+    }
 
-        for (width, height) in config.size.iter().copied() {
-            output.push(ICOConfigInner {
-                strip_metadata: config.strip_metadata,
-                width,
-                height,
-                crop: config.crop,
-                shrink_only: false,
-                sharpen: config.sharpen,
-                respect_orientation: config.respect_orientation,
-            });
+    pub fn from(config: &ICOConfig) -> Vec<ICOConfigInner> {
+        config
+            .size
+            .iter()
+            .copied()
+            .map(|(width, height)| Self::new(config, width, height))
+            .collect()
+    }
+
+    /// The config of the largest output image. `0` means the original width or the original height, so it beats any other value.
+    pub fn largest(config: &ICOConfig) -> ICOConfigInner {
+        let mut width = 1u32;
+        let mut height = 1u32;
+
+        for (w, h) in config.size.iter().copied() {
+            width = if width == 0 || w == 0 { 0 } else { width.max(w) };
+            height = if height == 0 || h == 0 { 0 } else { height.max(h) };
         }
 
-        output
+        Self::new(config, width, height)
     }
 }
 
@@ -43,7 +60,7 @@ impl ICOConfigInner {
 pub struct ICOConfig {
     /// Remove the metadata stored in the input image.
     pub strip_metadata:      bool,
-    /// The size of the output image, made up of a width and a height. `0` means the original width or the original height.
+    /// The nonempty sizes of output images, made up of a width and a height; `0` means the original width or height.
     pub size:                Vec<(u32, u32)>,
     /// Crop the image.
     pub crop:                Option<Crop>,
@@ -91,37 +108,45 @@ pub fn to_ico(
     input: &ImageResource,
     config: &ICOConfig,
 ) -> Result<(), MagickError> {
-    let mut icon_dir = ico::IconDir::new(ico::ResourceType::Icon);
-
     let inner_configs = ICOConfigInner::from(config);
 
-    if let Some((first_config, rest_configs)) = inner_configs.split_first() {
-        let (mut mw, vector) = fetch_magic_wand(input, first_config)?;
+    let Some((last_config, rest_configs)) = inner_configs.split_last() else {
+        return Err("The icon sizes cannot be empty.".into());
+    };
 
-        if vector {
-            // the input is a vector image, so render it in every size instead of resizing it
-            add_icon_entry(&mut icon_dir, &mut mw, first_config.strip_metadata)?;
+    let mut icon_dir = ico::IconDir::new(ico::ResourceType::Icon);
 
-            for config in rest_configs {
-                let (mut mw, vector) = fetch_magic_wand(input, config)?;
+    // the largest size decides whether the input can be rendered as a vector image, no matter how the sizes are ordered
+    let (mut mw, vector) = fetch_magic_wand(input, &ICOConfigInner::largest(config))?;
 
-                if !vector {
-                    // this size is smaller than the original size of the vector image
-                    resize_icon_image(&mw, config)?;
-                }
+    if vector {
+        // the input is a vector image, so render it in every size instead of resizing it
+        drop(mw);
 
-                add_icon_entry(&mut icon_dir, &mut mw, config.strip_metadata)?;
+        for config in &inner_configs {
+            let (mut mw, vector) = fetch_magic_wand(input, config)?;
+
+            if !vector {
+                // this size is smaller than the original size of the vector image
+                resize_and_sharpen(&mw, config)?;
             }
-        } else {
-            // every size is resized from the original image, otherwise the later ones would be resized from another size
-            for config in &inner_configs {
-                let mut mw = mw.clone();
 
-                resize_icon_image(&mw, config)?;
-
-                add_icon_entry(&mut icon_dir, &mut mw, config.strip_metadata)?;
-            }
+            add_icon_entry(&mut icon_dir, &mut mw, config.strip_metadata)?;
         }
+    } else {
+        // every size is resized from the original image, otherwise the later ones would be resized from another size
+        for config in rest_configs {
+            let mut mw = mw.clone();
+
+            resize_and_sharpen(&mw, config)?;
+
+            add_icon_entry(&mut icon_dir, &mut mw, config.strip_metadata)?;
+        }
+
+        // the last size does not need a clone anymore
+        resize_and_sharpen(&mw, last_config)?;
+
+        add_icon_entry(&mut icon_dir, &mut mw, last_config.strip_metadata)?;
     }
 
     match output {
@@ -138,23 +163,16 @@ pub fn to_ico(
             icon_dir.write(file).map_err(|_| "Cannot write the icon file.")?;
         },
         ImageResource::Data(b) => {
-            icon_dir.write(b).map_err(|_| "Cannot convert to icon data.")?;
+            let mut data = Vec::new();
+
+            icon_dir.write(&mut data).map_err(|_| "Cannot convert to icon data.")?;
+
+            *b = data;
         },
         ImageResource::MagickWand(_) => {
             return Err("ICO cannot be output to a MagickWand instance.".into());
         },
     }
-
-    Ok(())
-}
-
-// Resize the image to the size set in the config.
-fn resize_icon_image(mw: &MagickWand, config: &ICOConfigInner) -> Result<(), MagickError> {
-    let (width, height, sharpen) = compute_output_size_sharpen(mw, config);
-
-    mw.resize_image(width as usize, height as usize, FilterType::Lanczos)?;
-
-    mw.sharpen_image(0f64, sharpen)?;
 
     Ok(())
 }
@@ -169,7 +187,7 @@ fn add_icon_entry(
         mw.strip_image()?;
     }
 
-    mw.set_image_format("RGBA")?;
+    // `write_image_blob` sets the format itself
     mw.set_image_depth(8)?;
 
     let width = mw.get_image_width() as u32;

@@ -16,7 +16,7 @@ pub enum Color {
 }
 
 impl Color {
-    /// #FFFFFF
+    /// #000000
     pub const BLACK: Self = Self::Name(ColorName::Black);
     /// #0000FF
     pub const BLUE: Self = Self::Name(ColorName::Blue);
@@ -28,7 +28,7 @@ impl Color {
     pub const MAGENTA: Self = Self::Name(ColorName::Magenta);
     /// #FF0000
     pub const RED: Self = Self::Name(ColorName::Red);
-    /// #000000
+    /// #FFFFFF
     pub const WHITE: Self = Self::Name(ColorName::White);
     /// #FFFF00
     pub const YELLOW: Self = Self::Name(ColorName::Yellow);

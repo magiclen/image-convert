@@ -1,8 +1,9 @@
-use magick_rust::{ColorspaceType, FilterType, MagickError};
+use magick_rust::{ColorspaceType, MagickError};
 
 use crate::{
-    Color, Crop, ImageConfig, ImageResource, InterlaceType, compute_output_size_sharpen,
-    fetch_magic_wand, functions::handle_background_color, write_output,
+    Color, Crop, ImageConfig, ImageResource, InterlaceType, fetch_magic_wand,
+    functions::{handle_background_color, resize_and_sharpen},
+    write_output,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -105,9 +106,7 @@ pub fn to_gray_raw(
     }
 
     if !vector {
-        let (width, height, _) = compute_output_size_sharpen(&mw, config);
-
-        mw.resize_image(width as usize, height as usize, FilterType::Lanczos)?;
+        resize_and_sharpen(&mw, config)?;
     }
 
     if config.strip_metadata {

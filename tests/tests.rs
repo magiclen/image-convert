@@ -1,9 +1,9 @@
-use std::path::Path;
+use std::{io::Cursor, path::Path};
 
 use image_convert::{
-    BMPConfig, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig,
-    PGMConfig, PNGConfig, TIFFConfig, WEBPConfig, identify_ping, to_bmp, to_gif, to_gray_raw,
-    to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
+    BMPConfig, Crop, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig,
+    PGMConfig, PNGConfig, TIFFConfig, WEBPConfig, identify_ping, magick_rust::MagickWand,
+    start_call_once, to_bmp, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
 };
 
 const INPUT_IMAGE_PATH: &str = r"tests/data/P1060382.JPG";
@@ -71,6 +71,42 @@ fn to_png_file2file() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_png(&mut output, &input, &config).unwrap();
+}
+
+#[test]
+fn to_png_data2data() {
+    let input = ImageResource::from_path(INPUT_IMAGE_PATH);
+
+    let mut output = ImageResource::Data(b"old output".to_vec());
+
+    to_png(&mut output, &input, &PNGConfig::new()).unwrap();
+
+    let id = identify_ping(&output).unwrap();
+
+    assert_eq!(4592, id.resolution.width);
+    assert_eq!(2584, id.resolution.height);
+    assert_eq!("PNG", id.format);
+}
+
+#[test]
+fn to_png_file2wand_crop() {
+    start_call_once();
+
+    let mut config = PNGConfig::new();
+
+    config.crop = Some(Crop::Center(1f64, 1f64));
+
+    let input = ImageResource::from_path(INPUT_IMAGE_PATH);
+
+    let mut output = ImageResource::MagickWand(MagickWand::new());
+
+    to_png(&mut output, &input, &config).unwrap();
+
+    let mw = output.into_magick_wand().unwrap();
+
+    assert_eq!(2584, mw.get_image_width());
+    assert_eq!(2584, mw.get_image_height());
+    assert_eq!((0, 0, 0, 0), mw.get_image_page());
 }
 
 #[test]
@@ -143,6 +179,23 @@ fn to_ico_file2file() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_ico(&mut output, &input, &config).unwrap();
+}
+
+#[test]
+fn to_ico_data2data() {
+    let mut config = ICOConfig::new();
+
+    config.size.push((32u32, 32u32));
+
+    let input = ImageResource::from_path(INPUT_IMAGE_PATH);
+
+    let mut output = ImageResource::Data(b"old output".to_vec());
+
+    to_ico(&mut output, &input, &config).unwrap();
+
+    let icon_dir = ico::IconDir::read(Cursor::new(output.into_vec().unwrap())).unwrap();
+
+    assert_eq!(1, icon_dir.entries().len());
 }
 
 #[test]

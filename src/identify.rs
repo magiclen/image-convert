@@ -53,38 +53,31 @@ fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, MagickError> {
     })
 }
 
+// Create a `MagickWand` which holds the image of the input resource. `ping` does not decode the pixels.
+fn read_image_wand(input: &ImageResource, ping: bool) -> Result<MagickWand, MagickError> {
+    let mw = MagickWand::new();
+
+    set_none_background!(mw);
+
+    match input {
+        ImageResource::Path(p) if ping => mw.ping_image(p.as_str())?,
+        ImageResource::Path(p) => mw.read_image(p.as_str())?,
+        ImageResource::Data(b) if ping => mw.ping_image_blob(b)?,
+        ImageResource::Data(b) => mw.read_image_blob(b)?,
+        ImageResource::MagickWand(mw) => return Ok(mw.clone()),
+    }
+
+    Ok(mw)
+}
+
 /// Ping and identify an image. It does not decode the pixels, so it is faster than `identify_read`.
 pub fn identify_ping(input: &ImageResource) -> Result<ImageIdentify, MagickError> {
     start_call_once();
 
     match input {
-        ImageResource::Path(p) => {
-            let mw = MagickWand::new();
-
-            set_none_background!(mw);
-
-            mw.ping_image(p.as_str())?;
-
-            let identify = identify_inner(&mw)?;
-
-            Ok(identify)
-        },
-        ImageResource::Data(b) => {
-            let mw = MagickWand::new();
-
-            set_none_background!(mw);
-
-            mw.ping_image_blob(b)?;
-
-            let identify = identify_inner(&mw)?;
-
-            Ok(identify)
-        },
-        ImageResource::MagickWand(mw) => {
-            let identify = identify_inner(mw)?;
-
-            Ok(identify)
-        },
+        // the input holds the image already, so there is no need to clone it
+        ImageResource::MagickWand(mw) => identify_inner(mw),
+        _ => identify_inner(&read_image_wand(input, true)?),
     }
 }
 
@@ -95,39 +88,11 @@ pub fn identify_read(
 ) -> Result<ImageIdentify, MagickError> {
     start_call_once();
 
-    match input {
-        ImageResource::Path(p) => {
-            let mw = MagickWand::new();
+    let mw = read_image_wand(input, false)?;
 
-            set_none_background!(mw);
+    let identify = identify_inner(&mw)?;
 
-            mw.read_image(p.as_str())?;
+    output.replace(mw);
 
-            let identify = identify_inner(&mw)?;
-
-            output.replace(mw);
-
-            Ok(identify)
-        },
-        ImageResource::Data(b) => {
-            let mw = MagickWand::new();
-
-            set_none_background!(mw);
-
-            mw.read_image_blob(b)?;
-
-            let identify = identify_inner(&mw)?;
-
-            output.replace(mw);
-
-            Ok(identify)
-        },
-        ImageResource::MagickWand(mw) => {
-            let identify = identify_inner(mw)?;
-
-            output.replace(mw.clone());
-
-            Ok(identify)
-        },
-    }
+    Ok(identify)
 }

@@ -1,7 +1,7 @@
-use magick_rust::{FilterType, MagickError, ResolutionType};
+use magick_rust::{MagickError, ResolutionType};
 
 use crate::{
-    Crop, ImageResource, InterlaceType, compute_output_size_sharpen, fetch_magic_wand,
+    Crop, ImageResource, InterlaceType, fetch_magic_wand, functions::resize_and_sharpen,
     image_config::impl_image_config, write_output,
 };
 
@@ -73,17 +73,14 @@ pub fn to_png(
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if !vector {
-        let (width, height, sharpen) = compute_output_size_sharpen(&mw, config);
-
-        mw.resize_image(width as usize, height as usize, FilterType::Lanczos)?;
-
-        mw.sharpen_image(0f64, sharpen)?;
+        resize_and_sharpen(&mw, config)?;
     }
 
     if config.strip_metadata {
         mw.strip_image()?;
     }
 
+    // ImageMagick's PNG encoder reads the quality of the image info instead of the one of the image, so this may have no effect
     mw.set_image_compression_quality(100)?;
 
     mw.set_interlace_scheme(InterlaceType::Line)?;

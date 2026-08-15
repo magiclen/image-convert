@@ -10,40 +10,37 @@ This crate is a high level library using **MagickWand** (ImageMagick) for image 
 Identify an image.
 
 ```rust
-use image_convert::{ImageResource, InterlaceType, identify_read};
+use image_convert::{ImageResource, InterlaceType, MagickError, identify_read};
 
-let input = ImageResource::from_path("tests/data/P1060382.JPG");
+fn main() -> Result<(), MagickError> {
+    let input = ImageResource::from_path("tests/data/P1060382.JPG");
+    let mut output = None;
+    let id = identify_read(&mut output, &input)?;
 
-let mut output = None;
+    assert_eq!(4592, id.resolution.width);
+    assert_eq!(2584, id.resolution.height);
+    assert_eq!("JPEG", id.format);
+    assert_eq!(InterlaceType::No, id.interlace);
 
-let id = identify_read(&mut output, &input).unwrap();
-
-assert_eq!(4592, id.resolution.width);
-assert_eq!(2584, id.resolution.height);
-assert_eq!("JPEG", id.format);
-assert_eq!(InterlaceType::No, id.interlace);
+    Ok(())
+}
 ```
 
 Convert an image to a PNG image and also resize it.
 
 ```rust
-use std::path::Path;
+use image_convert::{ImageResource, MagickError, PNGConfig, to_png};
 
-use image_convert::{ImageResource, PNGConfig, to_png};
+fn main() -> Result<(), MagickError> {
+    let mut config = PNGConfig::new();
 
-let source_image_path = Path::new("tests/data/P1060382.JPG");
+    config.width = 1920;
 
-let target_image_path = Path::join(source_image_path.parent().unwrap(), "P1060382_output.png");
+    let input = ImageResource::from_path("tests/data/P1060382.JPG");
+    let mut output = ImageResource::from_path("tests/data/P1060382_output.png");
 
-let mut config = PNGConfig::new();
-
-config.width = 1920;
-
-let input = ImageResource::from_path(source_image_path);
-
-let mut output = ImageResource::from_path(target_image_path);
-
-to_png(&mut output, &input, &config).unwrap();
+    to_png(&mut output, &input, &config)
+}
 ```
 
 Supported output formats are `BMP`, `JPG`, `PNG`, `GIF`, `TIFF`, `WEBP`, `ICO`, `PGM` and `GrayRaw`.
@@ -60,31 +57,40 @@ image-convert = { version = "0.21", features = ["tokio"] }
 ```
 
 ```rust
-use image_convert::{ImageResource, PNGConfig, asynchronous::to_png};
+use image_convert::{ImageResource, MagickError, PNGConfig, asynchronous::to_png};
 
-let input = ImageResource::from_path("tests/data/P1060382.JPG");
-let output = ImageResource::from_path("tests/data/P1060382_output.png");
+async fn convert() -> Result<ImageResource, MagickError> {
+    let input = ImageResource::from_path("tests/data/P1060382.JPG");
+    let output = ImageResource::from_path("tests/data/P1060382_output.png");
+    let mut config = PNGConfig::new();
 
-let mut config = PNGConfig::new();
+    config.width = 1920;
 
-config.width = 1920;
-
-let output = to_png(output, input, config).await.unwrap();
+    to_png(output, input, config).await
+}
 ```
 
-With another runtime, wrapping the blocking functions is straightforward. Note that `ImageResource` is `Send` but not `Sync`, because a `MagickWand` cannot be shared between threads, so it has to be moved into the closure instead of being borrowed.
+Without the `tokio` feature, wrapping the blocking functions in a thread of your own is straightforward. Note that `ImageResource` is `Send` but not `Sync`, because a `MagickWand` cannot be shared between threads, so it has to be moved into the closure instead of being borrowed.
 
 ```rust
-let output = tokio::task::spawn_blocking(move || {
-    let mut output = ImageResource::with_capacity(1 << 20);
+use image_convert::{ImageResource, MagickError, PNGConfig, to_png};
 
-    to_png(&mut output, &input, &config)?;
+fn convert() -> Result<ImageResource, MagickError> {
+    let input = ImageResource::from_path("tests/data/P1060382.JPG");
+    let config = PNGConfig::new();
+    let conversion = std::thread::spawn(move || {
+        let mut output = ImageResource::Data(Vec::new());
 
-    Ok::<_, image_convert::MagickError>(output)
-})
-.await
-.unwrap()
-.unwrap();
+        to_png(&mut output, &input, &config)?;
+
+        Ok::<ImageResource, MagickError>(output)
+    });
+
+    match conversion.join() {
+        Ok(output) => output,
+        Err(_) => Err(MagickError("The conversion thread panicked.".to_owned())),
+    }
+}
 ```
 
 Running conversions in parallel is safe, but keep in mind that ImageMagick already parallelizes internally with OpenMP and uses every core by default. Running many conversions at the same time oversubscribes the CPU, so limit the concurrency yourself, and consider `MagickWand::set_resource_limit(ResourceType::Thread, 1)` on Linux and macOS.

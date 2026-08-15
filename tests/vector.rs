@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{io::Cursor, path::Path};
 
 use image_convert::{
     BMPConfig, Color, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig,
@@ -215,6 +215,38 @@ fn to_ico_file2file_rect() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_ico(&mut output, &input, &config).unwrap();
+}
+
+#[test]
+fn to_ico_data2data_size_order() {
+    let mut ascending_config = ICOConfig::new();
+
+    ascending_config.size.push((32u32, 32u32));
+    ascending_config.size.push((1024u32, 1024u32));
+
+    let mut descending_config = ICOConfig::new();
+
+    descending_config.size.push((1024u32, 1024u32));
+    descending_config.size.push((32u32, 32u32));
+
+    let input = ImageResource::from_path(INPUT_IMAGE_PATH);
+
+    let mut ascending_output = ImageResource::Data(Vec::new());
+    let mut descending_output = ImageResource::Data(Vec::new());
+
+    to_ico(&mut ascending_output, &input, &ascending_config).unwrap();
+    to_ico(&mut descending_output, &input, &descending_config).unwrap();
+
+    let ascending = ico::IconDir::read(Cursor::new(ascending_output.into_vec().unwrap())).unwrap();
+    let descending =
+        ico::IconDir::read(Cursor::new(descending_output.into_vec().unwrap())).unwrap();
+
+    assert_eq!(2, ascending.entries().len());
+    assert_eq!(32, ascending.entries()[0].width());
+    assert_eq!(1024, ascending.entries()[1].width());
+
+    // the largest size has to be rendered from the vector image, no matter how the sizes are ordered
+    assert!(descending.entries()[0].data() == ascending.entries()[1].data());
 }
 
 #[test]
