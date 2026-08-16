@@ -19,12 +19,21 @@ pub trait ImageConfig: Debug {
     /// Whether to shrink the image only, not to enlarge it.
     fn shrink_only(&self) -> bool;
     /// Whether to apply the orientation stored in the image metadata.
+    ///
+    /// The orientation is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away and leave the image lying on its side.
     fn respect_orientation(&self) -> bool;
+    /// Whether the output format can store every frame of a multi-frame input image, such as an animated GIF. `false` means to keep the first frame only.
+    fn keep_frames(&self) -> bool {
+        false
+    }
 }
 
 /// Implement `ImageConfig` for a config struct which has a field for every method of the trait.
 macro_rules! impl_image_config {
     ($name:ident) => {
+        impl_image_config!($name, false);
+    };
+    ($name:ident, $keep_frames:expr) => {
         impl $crate::ImageConfig for $name {
             #[inline]
             fn strip_metadata(&self) -> bool {
@@ -59,6 +68,11 @@ macro_rules! impl_image_config {
             #[inline]
             fn respect_orientation(&self) -> bool {
                 self.respect_orientation
+            }
+
+            #[inline]
+            fn keep_frames(&self) -> bool {
+                $keep_frames
             }
         }
     };

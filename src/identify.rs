@@ -14,19 +14,28 @@ pub struct Resolution {
 /// The identified data of an image.
 #[derive(Debug, Clone)]
 pub struct ImageIdentify {
-    /// The size of the image.
-    pub resolution:        Resolution,
+    /// The size of the image. It is the size of the first frame if the image has more than one.
+    pub resolution:            Resolution,
     /// The format of the image, such as `JPEG` or `PNG`.
-    pub format:            String,
+    pub format:                String,
     /// The interlace scheme of the image.
-    pub interlace:         InterlaceType,
+    pub interlace:             InterlaceType,
     /// The horizontal and the vertical resolution in pixels per inch.
-    pub ppi:               (f64, f64),
+    pub ppi:                   (f64, f64),
     /// Whether the image has an alpha channel.
-    pub has_alpha_channel: bool,
+    pub has_alpha_channel:     bool,
+    /// The number of frames of the image, such as the frames of an animated GIF or the pages of a TIFF document.
+    pub number_of_frames:      usize,
+    /// Whether the image holds an animation which **ImageMagick** cannot read, in which case only the first frame is available.
+    ///
+    /// It is `true` for an animated PNG (APNG), whose animation **ImageMagick** reads through an external `ffmpeg` delegate only. The built-in PNG decoder skips the animation chunks silently.
+    pub has_unreadable_frames: bool,
 }
 
 fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, MagickError> {
+    // reading an image leaves the iterator on the last frame, which of an optimized animation is only a small patch
+    mw.reset_iterator();
+
     let width = mw.get_image_width() as u32;
 
     let height = mw.get_image_height() as u32;
@@ -44,12 +53,19 @@ fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, MagickError> {
 
     let has_alpha_channel = mw.get_image_alpha_channel();
 
+    let number_of_frames = mw.get_number_images();
+
+    // the PNG decoder reports the animation control chunk of an APNG as a property, even though it cannot decode the frames
+    let has_unreadable_frames = mw.get_image_property("png:acTL").is_ok();
+
     Ok(ImageIdentify {
         resolution,
         format,
         interlace,
         ppi,
         has_alpha_channel,
+        number_of_frames,
+        has_unreadable_frames,
     })
 }
 

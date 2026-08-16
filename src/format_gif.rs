@@ -1,8 +1,10 @@
 use magick_rust::MagickError;
 
 use crate::{
-    Crop, ImageResource, InterlaceType, fetch_magic_wand, functions::resize_and_sharpen,
-    image_config::impl_image_config, write_output,
+    Crop, ImageResource, InterlaceType, fetch_magic_wand,
+    functions::{for_each_frame, resize_and_sharpen},
+    image_config::impl_image_config,
+    write_output,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -20,7 +22,7 @@ pub struct GIFConfig {
     pub shrink_only:         bool,
     /// The higher the sharper. A negative value means auto adjustment.
     pub sharpen:             f64,
-    /// Apply orientation from image metadata if available.
+    /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,
 }
 
@@ -34,7 +36,7 @@ impl GIFConfig {
     ///     crop: None,
     ///     shrink_only: true,
     ///     sharpen: -1f64,
-    ///     respect_orientation: false,
+    ///     respect_orientation: true,
     /// }
     /// ```
     #[inline]
@@ -46,7 +48,7 @@ impl GIFConfig {
             crop:                None,
             shrink_only:         true,
             sharpen:             -1f64,
-            respect_orientation: false,
+            respect_orientation: true,
         }
     }
 }
@@ -58,9 +60,12 @@ impl Default for GIFConfig {
     }
 }
 
-impl_image_config!(GIFConfig);
+// GIF stores an animation, so every frame of a multi-frame input image is kept.
+impl_image_config!(GIFConfig, true);
 
 /// Convert an image to a GIF image.
+///
+/// An animated input image keeps its frames, but the output is not layer-optimized, so it can be considerably bigger than the input.
 pub fn to_gif(
     output: &mut ImageResource,
     input: &ImageResource,
@@ -69,18 +74,20 @@ pub fn to_gif(
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if !vector {
-        resize_and_sharpen(&mw, config)?;
+        resize_and_sharpen(&mut mw, config)?;
     }
 
-    if config.strip_metadata {
-        mw.strip_image()?;
-    }
+    for_each_frame(&mut mw, |frame| {
+        if config.strip_metadata {
+            frame.strip_image()?;
+        }
 
-    mw.set_image_compression_quality(100)?;
+        frame.set_image_format("GIF")?;
+
+        Ok(())
+    })?;
 
     mw.set_interlace_scheme(InterlaceType::Line)?;
-
-    mw.set_image_format("GIF")?;
 
     write_output(output, mw, &["gif"], "GIF")
 }

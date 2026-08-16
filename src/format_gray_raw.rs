@@ -17,7 +17,7 @@ pub struct GrayRawConfig {
     pub height:              u32,
     /// Crop the image.
     pub crop:                Option<Crop>,
-    /// Apply orientation from image metadata if available.
+    /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,
     /// The color is used for fill up the alpha background.
     pub background_color:    Option<Color>,
@@ -31,7 +31,7 @@ impl GrayRawConfig {
     ///     width: 0u32,
     ///     height: 0u32,
     ///     crop: None,
-    ///     respect_orientation: false,
+    ///     respect_orientation: true,
     ///     background_color: None,
     /// }
     /// ```
@@ -42,7 +42,7 @@ impl GrayRawConfig {
             width:               0u32,
             height:              0u32,
             crop:                None,
-            respect_orientation: false,
+            respect_orientation: true,
             background_color:    None,
         }
     }
@@ -106,7 +106,7 @@ pub fn to_gray_raw(
     }
 
     if !vector {
-        resize_and_sharpen(&mw, config)?;
+        resize_and_sharpen(&mut mw, config)?;
     }
 
     if config.strip_metadata {

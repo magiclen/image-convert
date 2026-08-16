@@ -22,7 +22,7 @@ pub struct PGMConfig {
     pub shrink_only:         bool,
     /// The higher the sharper. A negative value means auto adjustment.
     pub sharpen:             f64,
-    /// Apply orientation from image metadata if available.
+    /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,
     /// The color is used for fill up the alpha background.
     pub background_color:    Option<Color>,
@@ -38,7 +38,7 @@ impl PGMConfig {
     ///     crop: None,
     ///     shrink_only: true,
     ///     sharpen: -1f64,
-    ///     respect_orientation: false,
+    ///     respect_orientation: true,
     ///     background_color: None,
     /// }
     /// ```
@@ -51,7 +51,7 @@ impl PGMConfig {
             crop:                None,
             shrink_only:         true,
             sharpen:             -1f64,
-            respect_orientation: false,
+            respect_orientation: true,
             background_color:    None,
         }
     }
@@ -79,7 +79,7 @@ pub fn to_pgm(
     }
 
     if !vector {
-        resize_and_sharpen(&mw, config)?;
+        resize_and_sharpen(&mut mw, config)?;
     }
 
     if config.strip_metadata {

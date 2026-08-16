@@ -1,8 +1,8 @@
-use magick_rust::{MagickError, ResolutionType};
+use magick_rust::{CompressionType, MagickError, ResolutionType};
 
 use crate::{
     Color, Crop, ImageResource, InterlaceType, fetch_magic_wand,
-    functions::{handle_background_color, resize_and_sharpen},
+    functions::{for_each_frame, handle_background_color, resize_and_sharpen},
     image_config::impl_image_config,
     write_output,
 };
@@ -22,7 +22,7 @@ pub struct TIFFConfig {
     pub shrink_only:         bool,
     /// The higher the sharper. A negative value means auto adjustment.
     pub sharpen:             f64,
-    /// Apply orientation from image metadata if available.
+    /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,
     /// The color is used for fill up the alpha background.
     pub background_color:    Option<Color>,
@@ -40,7 +40,7 @@ impl TIFFConfig {
     ///     crop: None,
     ///     shrink_only: true,
     ///     sharpen: -1f64,
-    ///     respect_orientation: false,
+    ///     respect_orientation: true,
     ///     background_color: None,
     ///     ppi: None,
     /// }
@@ -54,7 +54,7 @@ impl TIFFConfig {
             crop:                None,
             shrink_only:         true,
             sharpen:             -1f64,
-            respect_orientation: false,
+            respect_orientation: true,
             background_color:    None,
             ppi:                 None,
         }
@@ -68,9 +68,12 @@ impl Default for TIFFConfig {
     }
 }
 
-impl_image_config!(TIFFConfig);
+// TIFF stores a multi-page document, so every frame of a multi-frame input image is kept.
+impl_image_config!(TIFFConfig, true);
 
 /// Convert an image to a TIFF image.
+///
+/// A multi-page input image keeps its pages, and each of them is resized on its own. The output is compressed with LZW, which is lossless.
 pub fn to_tiff(
     output: &mut ImageResource,
     input: &ImageResource,
@@ -83,23 +86,29 @@ pub fn to_tiff(
     }
 
     if !vector {
-        resize_and_sharpen(&mw, config)?;
+        resize_and_sharpen(&mut mw, config)?;
     }
 
-    if config.strip_metadata {
-        mw.strip_image()?;
-    }
+    for_each_frame(&mut mw, |frame| {
+        if config.strip_metadata {
+            frame.strip_image()?;
+        }
 
-    mw.set_image_compression_quality(100)?;
+        frame.set_image_format("TIFF")?;
+
+        if let Some((x, y)) = config.ppi {
+            frame.set_image_resolution(x.max(0f64), y.max(0f64))?;
+            frame.set_image_units(ResolutionType::PixelsPerInch)?;
+        }
+
+        Ok(())
+    })?;
+
+    // ImageMagick's TIFF encoder reads the compression of the image info instead of the one of the image
+    // LZW is lossless and belongs to the TIFF 6.0 baseline, so every reader understands it, and the encoder turns the horizontal predictor on for it by itself
+    mw.set_compression(CompressionType::LZW)?;
 
     mw.set_interlace_scheme(InterlaceType::Line)?;
-
-    mw.set_image_format("TIFF")?;
-
-    if let Some((x, y)) = config.ppi {
-        mw.set_image_resolution(x.max(0f64), y.max(0f64))?;
-        mw.set_image_units(ResolutionType::PixelsPerInch)?;
-    }
 
     write_output(output, mw, &["tif", "tiff"], "TIFF")
 }

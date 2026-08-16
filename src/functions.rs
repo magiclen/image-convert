@@ -1,6 +1,8 @@
 use std::{cmp::Reverse, fs, ops::Range, path::Path, str};
 
-use magick_rust::{AlphaChannelOption, FilterType, MagickError, MagickWand, PixelWand};
+use magick_rust::{
+    AlphaChannelOption, FilterType, MagickError, MagickWand, OrientationType, PixelWand,
+};
 
 use crate::{
     Color, Crop, ImageConfig, ImageResource,
@@ -33,7 +35,7 @@ pub fn fetch_magic_wand(
 ) -> Result<(MagickWand, bool), MagickError> {
     start_call_once();
 
-    let mw = match input {
+    let mut mw = match input {
         ImageResource::Path(p) => {
             let mw = MagickWand::new();
 
@@ -55,23 +57,115 @@ pub fn fetch_magic_wand(
         ImageResource::MagickWand(mw) => mw.clone(),
     };
 
+    prepare_frames(&mut mw, config.keep_frames())?;
+
     // a vector image has to be re-rendered before being cropped, otherwise the crop result would be thrown away
-    let (mw, vector) = if config.crop().is_none() {
+    let (mut mw, vector) = if config.crop().is_none() {
         fetch_vector_magic_wand(mw, input, config)?
     } else {
         (mw, false)
     };
 
-    // `auto_orient` clones the whole image even when the orientation is already top-left
-    if config.respect_orientation() && mw.requires_orientation() && !mw.auto_orient() {
-        return Err("Cannot apply the orientation of the image.".into());
+    // stripping the metadata throws the orientation away, so the image has to be rotated before that happens
+    if config.respect_orientation() || config.strip_metadata() {
+        handle_orientation(&mut mw)?;
     }
 
     if let Some(crop) = config.crop() {
-        handle_crop(&mw, crop)?;
+        handle_crop(&mut mw, crop)?;
     }
 
     Ok((mw, vector))
+}
+
+/// Run `f` on every frame of the image. The iterator of the wand is left on the first frame.
+///
+/// Almost every operation of **MagickWand** works on the current frame only, so it has to be repeated for a multi-frame image.
+pub(crate) fn for_each_frame(
+    mw: &mut MagickWand,
+    mut f: impl FnMut(&mut MagickWand) -> Result<(), MagickError>,
+) -> Result<(), MagickError> {
+    mw.reset_iterator();
+
+    while mw.next_image() {
+        f(mw)?;
+    }
+
+    mw.reset_iterator();
+
+    Ok(())
+}
+
+// Make the frames of the image ready to be edited one by one.
+fn prepare_frames(mw: &mut MagickWand, keep_frames: bool) -> Result<(), MagickError> {
+    // reading an image leaves the iterator on the last frame instead of the first one
+    mw.reset_iterator();
+
+    if mw.get_number_images() <= 1 {
+        return Ok(());
+    }
+
+    if !keep_frames {
+        // the output format stores a single image, so drop the other frames before any work is spent on them
+        let mut images = mw.images_mut();
+
+        for index in (1..images.count()).rev() {
+            images.remove(index)?;
+        }
+    }
+
+    if requires_coalesce(mw)? {
+        *mw = mw.coalesce()?;
+    }
+
+    Ok(())
+}
+
+// Whether the frames are patches of a canvas, which is how an optimized animation stores them. Such a frame has to be composited onto the canvas before it can be edited on its own.
+fn requires_coalesce(mw: &MagickWand) -> Result<bool, MagickError> {
+    // the pages of a document have their own sizes instead of sharing a canvas, so they must not be composited onto one
+    if !matches!(mw.get_image_format()?.as_str(), "GIF" | "WEBP" | "PNG" | "APNG" | "MNG") {
+        return Ok(false);
+    }
+
+    let images = mw.images();
+
+    let Some(first) = images.first() else {
+        return Ok(false);
+    };
+
+    let (canvas_width, canvas_height, ..) = first.get_image_page();
+
+    Ok((0..images.count()).any(|index| match images.get(index) {
+        Some(frame) => {
+            let (.., x, y) = frame.get_image_page();
+
+            x != 0
+                || y != 0
+                || frame.get_image_width() < canvas_width
+                || frame.get_image_height() < canvas_height
+        },
+        None => false,
+    }))
+}
+
+// Rotate the image into the orientation which its metadata asks for, and reset that orientation so that a viewer would not rotate it again.
+fn handle_orientation(mw: &mut MagickWand) -> Result<(), MagickError> {
+    for_each_frame(mw, |frame| {
+        // `auto_orient` clones the whole image even when there is nothing to do, and ImageMagick treats an undefined orientation as a top-left one
+        if matches!(
+            frame.get_image_orientation(),
+            OrientationType::Undefined | OrientationType::TopLeft
+        ) {
+            return Ok(());
+        }
+
+        if !frame.auto_orient() {
+            return Err("Cannot apply the orientation of the image.".into());
+        }
+
+        Ok(())
+    })
 }
 
 // Re-render a vector image in the output size by rewriting its width and height, which keeps the image sharp.
@@ -168,15 +262,24 @@ fn find_svg_tag(svg: &str) -> Option<Range<usize>> {
     let mut index = 0;
 
     while index + 4 <= bytes.len() {
-        if bytes[index] == b'<' && bytes[index + 1..index + 4].eq_ignore_ascii_case(b"svg") {
-            let attributes_start = index + 4;
+        if bytes[index] == b'<' {
+            // a comment or a CDATA section may hold something which looks like a start tag
+            if let Some(end) = skip_ignorable_section(bytes, index) {
+                index = end;
 
-            // the tag name has to be exactly `svg`
-            if attributes_start == bytes.len()
-                || bytes[attributes_start].is_ascii_whitespace()
-                || matches!(bytes[attributes_start], b'>' | b'/')
-            {
-                return find_tag_end(bytes, attributes_start).map(|end| attributes_start..end);
+                continue;
+            }
+
+            if bytes[index + 1..index + 4].eq_ignore_ascii_case(b"svg") {
+                let attributes_start = index + 4;
+
+                // the tag name has to be exactly `svg`
+                if attributes_start == bytes.len()
+                    || bytes[attributes_start].is_ascii_whitespace()
+                    || matches!(bytes[attributes_start], b'>' | b'/')
+                {
+                    return find_tag_end(bytes, attributes_start).map(|end| attributes_start..end);
+                }
             }
         }
 
@@ -184,6 +287,30 @@ fn find_svg_tag(svg: &str) -> Option<Range<usize>> {
     }
 
     None
+}
+
+// If a comment or a CDATA section starts at `index`, return the index right after its end, or the length of the input if it is never closed.
+fn skip_ignorable_section(bytes: &[u8], index: usize) -> Option<usize> {
+    const SECTIONS: [(&[u8], &[u8]); 2] = [(b"<!--", b"-->"), (b"<![CDATA[", b"]]>")];
+
+    let rest = &bytes[index..];
+
+    for (opening, closing) in SECTIONS {
+        if rest.starts_with(opening) {
+            let content_start = index + opening.len();
+
+            return match find_bytes(&bytes[content_start..], closing) {
+                Some(offset) => Some(content_start + offset + closing.len()),
+                None => Some(bytes.len()),
+            };
+        }
+    }
+
+    None
+}
+
+fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack.windows(needle.len()).position(|window| window == needle)
 }
 
 // Find the `>` which closes a start tag, ignoring the one inside a quoted value.
@@ -284,7 +411,7 @@ fn find_attribute_value(attributes: &str, name: &str) -> Option<Range<usize>> {
     }
 }
 
-fn handle_crop(mw: &MagickWand, crop: Crop) -> Result<(), MagickError> {
+fn handle_crop(mw: &mut MagickWand, crop: Crop) -> Result<(), MagickError> {
     match crop {
         Crop::Center(w, h) => {
             let r = w / h;
@@ -293,27 +420,31 @@ fn handle_crop(mw: &MagickWand, crop: Crop) -> Result<(), MagickError> {
                 return Err("The ratio of CenterCrop is incorrect.".into());
             }
 
-            let original_width = mw.get_image_width();
-            let original_height = mw.get_image_height();
+            for_each_frame(mw, |frame| {
+                let original_width = frame.get_image_width();
+                let original_height = frame.get_image_height();
 
-            let original_width_f64 = original_width as f64;
-            let original_height_f64 = original_height as f64;
+                let original_width_f64 = original_width as f64;
+                let original_height_f64 = original_height as f64;
 
-            let ratio = original_width_f64 / original_height_f64;
+                let ratio = original_width_f64 / original_height_f64;
 
-            let (new_width, new_height) = if r >= ratio {
-                (original_width, (original_width_f64 / r).round() as usize)
-            } else {
-                ((original_height_f64 * r).round() as usize, original_height)
-            };
+                let (new_width, new_height) = if r >= ratio {
+                    (original_width, (original_width_f64 / r).round() as usize)
+                } else {
+                    ((original_height_f64 * r).round() as usize, original_height)
+                };
 
-            let x = (original_width - new_width) / 2;
-            let y = (original_height - new_height) / 2;
+                let x = (original_width - new_width) / 2;
+                let y = (original_height - new_height) / 2;
 
-            mw.crop_image(new_width, new_height, x as isize, y as isize)?;
+                frame.crop_image(new_width, new_height, x as isize, y as isize)?;
 
-            // cropping keeps the original canvas size and the crop offset in the page geometry, which formats like GIF would store
-            mw.reset_image_page("")?;
+                // cropping keeps the original canvas size and the crop offset in the page geometry, which formats like GIF would store
+                frame.reset_image_page("")?;
+
+                Ok(())
+            })?;
         },
     }
 
@@ -322,21 +453,25 @@ fn handle_crop(mw: &MagickWand, crop: Crop) -> Result<(), MagickError> {
 
 // Resize the image to the size computed from the config, and then sharpen it.
 pub(crate) fn resize_and_sharpen(
-    mw: &MagickWand,
+    mw: &mut MagickWand,
     config: &impl ImageConfig,
 ) -> Result<(), MagickError> {
-    let (width, height, sharpen) = compute_output_size_sharpen(mw, config);
+    // the size is computed per frame, so the pages of a multi-page document keep their own aspect ratios
+    for_each_frame(mw, |frame| {
+        let (width, height, sharpen) = compute_output_size_sharpen(frame, config);
 
-    // ImageMagick skips a resize with the same size only when the filter is undefined, so it has to be skipped here
-    if width as usize != mw.get_image_width() || height as usize != mw.get_image_height() {
-        mw.resize_image(width as usize, height as usize, FilterType::Lanczos)?;
-    }
+        // ImageMagick skips a resize with the same size only when the filter is undefined, so it has to be skipped here
+        if width as usize != frame.get_image_width() || height as usize != frame.get_image_height()
+        {
+            frame.resize_image(width as usize, height as usize, FilterType::Lanczos)?;
+        }
 
-    if sharpen > 0f64 {
-        mw.sharpen_image(0f64, sharpen)?;
-    }
+        if sharpen > 0f64 {
+            frame.sharpen_image(0f64, sharpen)?;
+        }
 
-    Ok(())
+        Ok(())
+    })
 }
 
 // Fill up the alpha background of the image with the given color.
@@ -348,10 +483,12 @@ pub(crate) fn handle_background_color(
 
     pw.set_color(color.to_magick_color().as_ref())?;
 
-    mw.set_image_background_color(&pw)?;
-    mw.set_image_alpha_channel(AlphaChannelOption::Remove)?;
+    for_each_frame(mw, |frame| {
+        frame.set_image_background_color(&pw)?;
+        frame.set_image_alpha_channel(AlphaChannelOption::Remove)?;
 
-    Ok(())
+        Ok(())
+    })
 }
 
 // Write the image out to the output resource. `extensions` are the file extension names allowed by the output format.
@@ -361,6 +498,9 @@ pub(crate) fn write_output(
     extensions: &[&str],
     format: &str,
 ) -> Result<(), MagickError> {
+    // `write_image` and `write_image_blob` store the current frame only
+    let multi_frame = mw.get_number_images() > 1;
+
     match output {
         ImageResource::Path(p) => {
             if !has_extension(p.as_str(), extensions) {
@@ -370,10 +510,25 @@ pub(crate) fn write_output(
                 )));
             }
 
-            mw.write_image(p.as_str())?;
+            if multi_frame {
+                mw.write_images(p.as_str(), true)?;
+            } else {
+                mw.write_image(p.as_str())?;
+            }
         },
         ImageResource::Data(b) => {
-            *b = mw.write_image_blob(format)?;
+            let data = if multi_frame {
+                mw.write_images_blob(format)?
+            } else {
+                mw.write_image_blob(format)?
+            };
+
+            // `write_images_blob` reports a failure as an empty blob instead of an error
+            if data.is_empty() {
+                return Err(MagickError(format!("Cannot write the image as {format} data.")));
+            }
+
+            *b = data;
         },
         ImageResource::MagickWand(mw_2) => {
             *mw_2 = mw;

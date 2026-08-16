@@ -20,7 +20,7 @@ pub struct PNGConfig {
     pub shrink_only:         bool,
     /// The higher the sharper. A negative value means auto adjustment.
     pub sharpen:             f64,
-    /// Apply orientation from image metadata if available.
+    /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,
     /// Pixels per inch.
     pub ppi:                 Option<(f64, f64)>,
@@ -36,7 +36,7 @@ impl PNGConfig {
     ///     crop: None,
     ///     shrink_only: true,
     ///     sharpen: -1f64,
-    ///     respect_orientation: false,
+    ///     respect_orientation: true,
     ///     ppi: None,
     /// }
     /// ```
@@ -49,7 +49,7 @@ impl PNGConfig {
             crop:                None,
             shrink_only:         true,
             sharpen:             -1f64,
-            respect_orientation: false,
+            respect_orientation: true,
             ppi:                 None,
         }
     }
@@ -73,15 +73,16 @@ pub fn to_png(
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if !vector {
-        resize_and_sharpen(&mw, config)?;
+        resize_and_sharpen(&mut mw, config)?;
     }
 
     if config.strip_metadata {
         mw.strip_image()?;
     }
 
-    // ImageMagick's PNG encoder reads the quality of the image info instead of the one of the image, so this may have no effect
-    mw.set_image_compression_quality(100)?;
+    // ImageMagick's PNG encoder reads the quality of the image info instead of the one of the image, where the tens digit is the zlib level and the ones digit is the filter method
+    // `95` means the best zlib level with adaptive filtering; `100` would turn the filters off and make the output bigger
+    mw.set_compression_quality(95)?;
 
     mw.set_interlace_scheme(InterlaceType::Line)?;
 

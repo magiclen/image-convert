@@ -1,8 +1,10 @@
 use magick_rust::{MagickError, ResolutionType};
 
 use crate::{
-    Crop, ImageResource, InterlaceType, fetch_magic_wand, functions::resize_and_sharpen,
-    image_config::impl_image_config, write_output,
+    Crop, ImageResource, InterlaceType, fetch_magic_wand,
+    functions::{for_each_frame, resize_and_sharpen},
+    image_config::impl_image_config,
+    write_output,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -20,7 +22,7 @@ pub struct WEBPConfig {
     pub shrink_only:         bool,
     /// The higher the sharper. A negative value means auto adjustment.
     pub sharpen:             f64,
-    /// Apply orientation from image metadata if available.
+    /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,
     /// From 0 to 100, the higher the better.
     pub quality:             u8,
@@ -38,7 +40,7 @@ impl WEBPConfig {
     ///     crop: None,
     ///     shrink_only: true,
     ///     sharpen: -1f64,
-    ///     respect_orientation: false,
+    ///     respect_orientation: true,
     ///     quality: 85u8,
     ///     ppi: None,
     /// }
@@ -52,7 +54,7 @@ impl WEBPConfig {
             crop:                None,
             shrink_only:         true,
             sharpen:             -1f64,
-            respect_orientation: false,
+            respect_orientation: true,
             quality:             85u8,
             ppi:                 None,
         }
@@ -66,9 +68,12 @@ impl Default for WEBPConfig {
     }
 }
 
-impl_image_config!(WEBPConfig);
+// WEBP stores an animation, so every frame of a multi-frame input image is kept.
+impl_image_config!(WEBPConfig, true);
 
 /// Convert an image to a WEBP image.
+///
+/// An animated input image keeps its frames if **ImageMagick** was built with the `webpmux` delegate.
 pub fn to_webp(
     output: &mut ImageResource,
     input: &ImageResource,
@@ -77,23 +82,29 @@ pub fn to_webp(
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if !vector {
-        resize_and_sharpen(&mw, config)?;
+        resize_and_sharpen(&mut mw, config)?;
     }
 
-    if config.strip_metadata {
-        mw.strip_image()?;
-    }
+    let quality = config.quality.min(100) as usize;
 
-    mw.set_image_compression_quality(config.quality.min(100) as usize)?;
+    for_each_frame(&mut mw, |frame| {
+        if config.strip_metadata {
+            frame.strip_image()?;
+        }
+
+        frame.set_image_compression_quality(quality)?;
+
+        frame.set_image_format("WEBP")?;
+
+        if let Some((x, y)) = config.ppi {
+            frame.set_image_resolution(x.max(0f64), y.max(0f64))?;
+            frame.set_image_units(ResolutionType::PixelsPerInch)?;
+        }
+
+        Ok(())
+    })?;
 
     mw.set_interlace_scheme(InterlaceType::Line)?;
-
-    mw.set_image_format("WEBP")?;
-
-    if let Some((x, y)) = config.ppi {
-        mw.set_image_resolution(x.max(0f64), y.max(0f64))?;
-        mw.set_image_units(ResolutionType::PixelsPerInch)?;
-    }
 
     write_output(output, mw, &["webp"], "WEBP")
 }

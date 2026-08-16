@@ -45,6 +45,21 @@ fn main() -> Result<(), MagickError> {
 
 Supported output formats are `BMP`, `JPG`, `PNG`, `GIF`, `TIFF`, `WEBP`, `ICO`, `PGM` and `GrayRaw`.
 
+## Multi-frame images
+
+An animated GIF, an animated WebP and a multi-page TIFF are read with all of their frames. `to_gif`, `to_webp` and `to_tiff` keep every frame, and each frame is cropped, resized and sharpened on its own. The other output formats store a single image, so they keep the first frame and drop the rest.
+
+Two limitations are worth knowing:
+
+* The GIF output is not layer-optimized, because **MagickWand** does not expose the layer optimization, so an animated GIF can come out considerably bigger than it went in.
+* **ImageMagick** reads an animated PNG (APNG) through an external `ffmpeg` delegate only. Its built-in PNG decoder skips the animation and reads the first frame silently, so this crate treats an APNG as a still image. `ImageIdentify::has_unreadable_frames` reports when that happens.
+
+## Orientation
+
+Many cameras store a photo in the orientation of their sensor and put the real orientation into the metadata. `respect_orientation` rotates the image into that orientation and resets the metadata, so a viewer would not rotate it a second time. It defaults to `true`.
+
+The orientation is also applied when `strip_metadata` is `true`, even if `respect_orientation` is `false`: the metadata is the only place where the orientation lives, so removing it without applying it first would leave the image lying on its side.
+
 ## Async
 
 Every operation in this crate is CPU-bound. There is no I/O to wait for, so an `async fn` which does the work directly would hold an executor worker thread for the whole conversion and starve the other tasks. That is why the functions above are blocking.

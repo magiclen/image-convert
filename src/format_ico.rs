@@ -66,7 +66,7 @@ pub struct ICOConfig {
     pub crop:                Option<Crop>,
     /// The higher the sharper. A negative value means auto adjustment.
     pub sharpen:             f64,
-    /// Apply orientation from image metadata if available.
+    /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,
 }
 
@@ -78,7 +78,7 @@ impl ICOConfig {
     ///     size: Vec::with_capacity(1),
     ///     crop: None,
     ///     sharpen: -1f64,
-    ///     respect_orientation: false,
+    ///     respect_orientation: true,
     /// }
     /// ```
     #[inline]
@@ -88,7 +88,7 @@ impl ICOConfig {
             size:                Vec::with_capacity(1),
             crop:                None,
             sharpen:             -1f64,
-            respect_orientation: false,
+            respect_orientation: true,
         }
     }
 }
@@ -117,18 +117,31 @@ pub fn to_ico(
     let mut icon_dir = ico::IconDir::new(ico::ResourceType::Icon);
 
     // the largest size decides whether the input can be rendered as a vector image, no matter how the sizes are ordered
-    let (mut mw, vector) = fetch_magic_wand(input, &ICOConfigInner::largest(config))?;
+    let largest_config = ICOConfigInner::largest(config);
+
+    let (mut mw, vector) = fetch_magic_wand(input, &largest_config)?;
 
     if vector {
         // the input is a vector image, so render it in every size instead of resizing it
-        drop(mw);
+        let mut largest = Some(mw);
 
         for config in &inner_configs {
-            let (mut mw, vector) = fetch_magic_wand(input, config)?;
+            let rendered =
+                if config.width == largest_config.width && config.height == largest_config.height {
+                    largest.take()
+                } else {
+                    None
+                };
+
+            let (mut mw, vector) = match rendered {
+                // the largest size has been rendered already, so do not render it a second time
+                Some(mw) => (mw, true),
+                None => fetch_magic_wand(input, config)?,
+            };
 
             if !vector {
                 // this size is smaller than the original size of the vector image
-                resize_and_sharpen(&mw, config)?;
+                resize_and_sharpen(&mut mw, config)?;
             }
 
             add_icon_entry(&mut icon_dir, &mut mw, config.strip_metadata)?;
@@ -138,13 +151,13 @@ pub fn to_ico(
         for config in rest_configs {
             let mut mw = mw.clone();
 
-            resize_and_sharpen(&mw, config)?;
+            resize_and_sharpen(&mut mw, config)?;
 
             add_icon_entry(&mut icon_dir, &mut mw, config.strip_metadata)?;
         }
 
         // the last size does not need a clone anymore
-        resize_and_sharpen(&mw, last_config)?;
+        resize_and_sharpen(&mut mw, last_config)?;
 
         add_icon_entry(&mut icon_dir, &mut mw, last_config.strip_metadata)?;
     }
