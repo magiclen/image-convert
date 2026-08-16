@@ -93,6 +93,33 @@ fn to_gif_data2data_keeps_frames() {
 }
 
 #[test]
+fn to_gif_data2data_keeps_the_layer_optimization() {
+    let input = ImageResource::from_path(INPUT_IMAGE_PATH);
+
+    let mut output = ImageResource::Data(Vec::new());
+
+    // the config asks for no editing at all, so the frames must not be composited onto the canvas
+    to_gif(&mut output, &input, &GIFConfig::new()).unwrap();
+
+    let mut mw = None;
+
+    let id = identify_read(&mut mw, &output).unwrap();
+
+    assert_eq!(4, id.number_of_frames);
+
+    let mw = mw.unwrap();
+    let images = mw.images();
+
+    // the frames after the first one are still patches instead of full-size frames
+    for index in 1..images.count() {
+        let frame = images.get(index).unwrap();
+
+        assert_eq!(39, frame.get_image_width());
+        assert_eq!(41, frame.get_image_height());
+    }
+}
+
+#[test]
 fn to_webp_data2data_keeps_frames() {
     let input = ImageResource::from_path(INPUT_IMAGE_PATH);
 

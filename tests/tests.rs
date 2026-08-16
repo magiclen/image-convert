@@ -2,8 +2,9 @@ use std::{io::Cursor, path::Path};
 
 use image_convert::{
     BMPConfig, Crop, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig,
-    PGMConfig, PNGConfig, TIFFConfig, WEBPConfig, identify_ping, magick_rust::MagickWand,
-    start_call_once, to_bmp, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
+    PGMConfig, PNGConfig, TIFFConfig, WEBPConfig, identify_ping, identify_read,
+    magick_rust::MagickWand, start_call_once, to_bmp, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm,
+    to_png, to_tiff, to_webp,
 };
 
 const INPUT_IMAGE_PATH: &str = r"tests/data/P1060382.JPG";
@@ -54,6 +55,32 @@ fn to_jpg_file2file() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_jpg(&mut output, &input, &config).unwrap();
+}
+
+#[test]
+fn to_jpg_data2data_keeps_the_quality() {
+    let input = ImageResource::from_path(INPUT_IMAGE_PATH);
+
+    let mut input_mw = None;
+
+    identify_read(&mut input_mw, &input).unwrap();
+
+    let input_quality = input_mw.unwrap().get_image_compression_quality();
+
+    let mut config = JPGConfig::new();
+
+    config.quality = None;
+
+    let mut output = ImageResource::Data(Vec::new());
+
+    to_jpg(&mut output, &input, &config).unwrap();
+
+    let mut output_mw = None;
+
+    identify_read(&mut output_mw, &output).unwrap();
+
+    // the quality ImageMagick estimated from the input image is the one it encodes with
+    assert_eq!(input_quality, output_mw.unwrap().get_image_compression_quality());
 }
 
 #[test]

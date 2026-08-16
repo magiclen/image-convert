@@ -47,10 +47,16 @@ Supported output formats are `BMP`, `JPG`, `PNG`, `GIF`, `TIFF`, `WEBP`, `ICO`, 
 
 An animated GIF, an animated WebP and a multi-page TIFF are read with all of their frames. `to_gif`, `to_webp` and `to_tiff` keep every frame, and each frame is cropped, resized and sharpened on its own. The other output formats store a single image, so they keep the first frame and drop the rest.
 
+An optimized animation stores its frames as patches of a canvas, and such a frame has to be composited onto the canvas before it can be edited on its own. That is why the frames are left untouched when the config asks for no editing at all, which keeps the layer optimization of the input image.
+
 Two limitations are worth knowing:
 
-* The GIF output is not layer-optimized, because **MagickWand** does not expose the layer optimization, so an animated GIF can come out considerably bigger than it went in.
+* As soon as the frames do have to be composited, the output is no longer layer-optimized, because **MagickWand** does not expose the layer optimization which would pack them back. An animated GIF which is resized can therefore come out considerably bigger than it went in.
 * **ImageMagick** reads an animated PNG (APNG) through an external `ffmpeg` delegate only. Its built-in PNG decoder skips the animation and reads the first frame silently, so this crate treats an APNG as a still image. `ImageIdentify::has_unreadable_frames` reports when that happens.
+
+## Quality
+
+`JPGConfig::quality` can be `None`, which keeps the quality of the input image instead of asking for one. **ImageMagick** estimates that quality from the quantization tables of an input JPEG image, so re-encoding a JPEG image does not compress it a second time at a lower quality. It falls back to the default of **ImageMagick** when the input image is not a JPEG image.
 
 ## Orientation
 

@@ -57,7 +57,7 @@ pub fn fetch_magic_wand(
         ImageResource::MagickWand(mw) => mw.clone(),
     };
 
-    prepare_frames(&mut mw, config.keep_frames())?;
+    prepare_frames(&mut mw, config)?;
 
     // a vector image has to be re-rendered before being cropped, otherwise the crop result would be thrown away
     let (mut mw, vector) = if config.crop().is_none() {
@@ -97,7 +97,7 @@ pub(crate) fn for_each_frame(
 }
 
 // Make the frames of the image ready to be edited one by one.
-fn prepare_frames(mw: &mut MagickWand, keep_frames: bool) -> Result<(), MagickError> {
+fn prepare_frames(mw: &mut MagickWand, config: &impl ImageConfig) -> Result<(), MagickError> {
     // reading an image leaves the iterator on the last frame instead of the first one
     mw.reset_iterator();
 
@@ -105,7 +105,7 @@ fn prepare_frames(mw: &mut MagickWand, keep_frames: bool) -> Result<(), MagickEr
         return Ok(());
     }
 
-    if !keep_frames {
+    if !config.keep_frames() {
         // the output format stores a single image, so drop the other frames before any work is spent on them
         let mut images = mw.images_mut();
 
@@ -114,15 +114,40 @@ fn prepare_frames(mw: &mut MagickWand, keep_frames: bool) -> Result<(), MagickEr
         }
     }
 
-    if requires_coalesce(mw)? {
+    // compositing the frames onto the canvas throws the layer optimization of an animation away and makes the output considerably bigger, so it is done only when the frames are edited afterwards
+    if edits_frames(mw, config) && requires_coalesce(mw)? {
         *mw = mw.coalesce()?;
     }
 
     Ok(())
 }
 
+// Whether any operation after `prepare_frames` changes the pixels of the frames.
+fn edits_frames(mw: &MagickWand, config: &impl ImageConfig) -> bool {
+    config.crop().is_some()
+        || config.sharpen() > 0f64
+        || compute_output_size_if_different(mw, config).is_some()
+        || ((config.respect_orientation() || config.strip_metadata()) && requires_orientation(mw))
+}
+
+// Whether any frame asks to be rotated. `auto_orient` rotates the pixels of a frame without moving its offset on the canvas, so a patch frame has to be composited before that.
+fn requires_orientation(mw: &MagickWand) -> bool {
+    let images = mw.images();
+
+    (0..images.count()).any(|index| match images.get(index) {
+        Some(frame) => !matches!(
+            frame.get_image_orientation(),
+            OrientationType::Undefined | OrientationType::TopLeft
+        ),
+        None => false,
+    })
+}
+
 // Whether the frames are patches of a canvas, which is how an optimized animation stores them. Such a frame has to be composited onto the canvas before it can be edited on its own.
 fn requires_coalesce(mw: &MagickWand) -> Result<bool, MagickError> {
+    // reading the format of a frame the iterator happens to point at would be meaningless
+    mw.reset_iterator();
+
     // the pages of a document have their own sizes instead of sharing a canvas, so they must not be composited onto one
     if !matches!(mw.get_image_format()?.as_str(), "GIF" | "WEBP" | "PNG" | "APNG" | "MNG") {
         return Ok(false);

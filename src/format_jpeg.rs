@@ -26,8 +26,8 @@ pub struct JPGConfig {
     pub respect_orientation:       bool,
     /// Use 4:2:0 (chroma quartered) subsampling to reduce the file size.
     pub force_to_chroma_quartered: bool,
-    /// From 1 to 100, the higher the better.
-    pub quality:                   u8,
+    /// From 1 to 100, the higher the better. `None` means to keep the quality of the input image, which is the quality **ImageMagick** estimates from the quantization tables of an input JPEG image, or its own default when the input image is not a JPEG image.
+    pub quality:                   Option<u8>,
     /// The color is used for fill up the alpha background.
     pub background_color:          Option<Color>,
     /// Pixels per inch.
@@ -46,7 +46,7 @@ impl JPGConfig {
     ///     sharpen: -1f64,
     ///     respect_orientation: true,
     ///     force_to_chroma_quartered: true,
-    ///     quality: 85u8,
+    ///     quality: Some(85u8),
     ///     background_color: None,
     ///     ppi: None,
     /// }
@@ -62,7 +62,7 @@ impl JPGConfig {
             sharpen:                   -1f64,
             respect_orientation:       true,
             force_to_chroma_quartered: true,
-            quality:                   85u8,
+            quality:                   Some(85u8),
             background_color:          None,
             ppi:                       None,
         }
@@ -102,7 +102,10 @@ pub fn to_jpg(
         mw.set_sampling_factors(&[2f64, 1f64, 1f64])?;
     }
 
-    mw.set_image_compression_quality(config.quality.clamp(1, 100) as usize)?;
+    // the encoder falls back to the quality of the image itself, which is the one ImageMagick estimated when it read an input JPEG image
+    if let Some(quality) = config.quality {
+        mw.set_image_compression_quality(quality.clamp(1, 100) as usize)?;
+    }
 
     mw.set_interlace_scheme(InterlaceType::Line)?;
 
