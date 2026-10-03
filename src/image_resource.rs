@@ -18,6 +18,8 @@ pub enum ImageResource {
 
 impl ImageResource {
     /// Create an image resource from a path.
+    ///
+    /// The path is stored as a UTF-8 string, so a path which is not valid UTF-8 is converted lossily.
     pub fn from_path<P: AsRef<Path>>(path: P) -> ImageResource {
         ImageResource::Path(path.as_ref().to_string_lossy().into_owned())
     }
@@ -77,7 +79,7 @@ impl ImageResource {
         if let ImageResource::Data(d) = self { Some(d.as_slice()) } else { None }
     }
 
-    /// Convert this `ImageResource` instance into a `Magickwand` reference (if it is possible).
+    /// Convert this `ImageResource` instance into a `MagickWand` reference (if it is possible).
     pub fn as_magick_wand(&self) -> Option<&MagickWand> {
         if let ImageResource::MagickWand(mw) = self { Some(mw) } else { None }
     }

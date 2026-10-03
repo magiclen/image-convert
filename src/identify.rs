@@ -1,6 +1,10 @@
 use magick_rust::{MagickError, MagickWand, ResolutionType};
 
-use crate::{ImageResource, InterlaceType, read::read_image_wand, start_call_once};
+use crate::{
+    ImageResource, InterlaceType,
+    read::{has_apng_frames, read_image_wand},
+    start_call_once,
+};
 
 /// The resolution of an image.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,8 +63,7 @@ fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, MagickError> {
 
     let number_of_frames = mw.get_number_images();
 
-    // the PNG decoder reports the animation control chunk of an APNG as a property, even though it cannot decode the frames
-    let has_unreadable_frames = mw.get_image_property("png:acTL").is_ok();
+    let has_unreadable_frames = has_apng_frames(mw);
 
     Ok(ImageIdentify {
         resolution,

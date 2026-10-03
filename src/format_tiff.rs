@@ -1,7 +1,7 @@
 use magick_rust::{CompressionType, MagickError, ResolutionType};
 
 use crate::{
-    Color, Crop, ImageResource, InterlaceType,
+    Color, Crop, ImageResource, InterlaceType, check_output,
     functions::{
         fetch_magic_wand_for_format, for_each_frame, handle_background_color, resize_and_sharpen,
     },
@@ -26,7 +26,7 @@ pub struct TIFFConfig {
     pub sharpen:             f64,
     /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,
-    /// The color is used for fill up the alpha background.
+    /// The color is used to fill up the alpha background.
     pub background_color:    Option<Color>,
     /// Pixels per inch.
     pub ppi:                 Option<(f64, f64)>,
@@ -81,6 +81,8 @@ pub fn to_tiff(
     input: &ImageResource,
     config: &TIFFConfig,
 ) -> Result<(), MagickError> {
+    check_output(output, &["tif", "tiff"])?;
+
     let (mut mw, vector) = fetch_magic_wand_for_format(input, config, "TIFF")?;
 
     if let Some(background_color) = config.background_color.as_ref() {
@@ -112,5 +114,5 @@ pub fn to_tiff(
 
     mw.set_interlace_scheme(InterlaceType::Line)?;
 
-    write_output(output, mw, &["tif", "tiff"], "TIFF")
+    write_output(output, mw, "TIFF")
 }

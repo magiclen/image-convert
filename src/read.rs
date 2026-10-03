@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{self, BufReader, Cursor, Read, Seek, SeekFrom},
+    io::{self, BufReader, Cursor, Read, Seek},
 };
 
 use magick_rust::{DisposeType, MagickError, MagickWand};
@@ -41,7 +41,7 @@ pub(crate) fn read_image_wand(
 
     mw.reset_iterator();
 
-    if ping || !keep_frames || mw.get_image_property("png:acTL").is_err() {
+    if ping || !keep_frames || !has_apng_frames(&mw) {
         return Ok(mw);
     }
 
@@ -107,6 +107,14 @@ pub(crate) fn read_image_wand(
     Ok(animation)
 }
 
+// The PNG decoder reports the animation control chunk of an APNG as this property, even though it cannot decode the frames.
+pub(crate) const APNG_PROPERTY: &str = "png:acTL";
+
+// Whether the current image is the default image of an APNG whose animation frames have not been decoded. An empty value means the property has been removed.
+pub(crate) fn has_apng_frames(mw: &MagickWand) -> bool {
+    mw.get_image_property(APNG_PROPERTY).is_ok_and(|value| !value.is_empty())
+}
+
 fn png_path(path: &str) -> &str {
     match path.get(..5) {
         Some(prefix) if prefix.eq_ignore_ascii_case("apng:") => &path[5..],
@@ -167,9 +175,9 @@ fn read_apng_metadata(mut reader: impl Read + Seek) -> io::Result<ApngMetadata> 
                 return Ok(metadata);
             },
             _ => {
-                reader.seek(SeekFrom::Current(i64::from(length)))?;
+                reader.seek_relative(i64::from(length))?;
             },
         }
-        reader.seek(SeekFrom::Current(4))?;
+        reader.seek_relative(4)?;
     }
 }

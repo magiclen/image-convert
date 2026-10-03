@@ -1,7 +1,7 @@
 use magick_rust::{MagickError, ResolutionType};
 
 use crate::{
-    Color, Crop, ImageResource, InterlaceType, fetch_magic_wand,
+    Color, Crop, ImageResource, InterlaceType, check_output, fetch_magic_wand,
     functions::{handle_background_color, resize_and_sharpen},
     image_config::impl_image_config,
     write_output,
@@ -24,7 +24,7 @@ pub struct BMPConfig {
     pub sharpen:             f64,
     /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,
-    /// The color is used for fill up the alpha background.
+    /// The color is used to fill up the alpha background.
     pub background_color:    Option<Color>,
     /// Pixels per inch.
     pub ppi:                 Option<(f64, f64)>,
@@ -76,6 +76,8 @@ pub fn to_bmp(
     input: &ImageResource,
     config: &BMPConfig,
 ) -> Result<(), MagickError> {
+    check_output(output, &["bmp"])?;
+
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if let Some(background_color) = config.background_color.as_ref() {
@@ -99,5 +101,5 @@ pub fn to_bmp(
         mw.set_image_units(ResolutionType::PixelsPerInch)?;
     }
 
-    write_output(output, mw, &["bmp"], "BMP")
+    write_output(output, mw, "BMP")
 }

@@ -7,7 +7,7 @@ use magick_rust::{
 use crate::{
     Color, Crop, ImageConfig, ImageResource, compute_output_size,
     image_config::{compute_output_size_if_different, compute_output_size_sharpen},
-    read::read_image_wand,
+    read::{APNG_PROPERTY, has_apng_frames, read_image_wand},
     start_call_once,
 };
 
@@ -108,6 +108,12 @@ fn prepare_frames(
     if !config.keep_frames() && mw.get_number_images() > 1 {
         // Clone only the first image instead of removing the other frames by index.
         *mw = MagickWand::new_from_image(&mw.get_image()?)?;
+    }
+
+    // Only the default image of an APNG is kept, so the output must not be treated as an APNG whose frames are missing.
+    if !config.keep_frames() && has_apng_frames(mw) {
+        // `magick_rust` cannot delete a property, so an empty value marks it as removed
+        mw.set_image_property(APNG_PROPERTY, "")?;
     }
 
     let input_format = mw.get_image_format()?;
@@ -238,18 +244,29 @@ fn resize_svg(
         return Ok((mw, false));
     };
 
+    let attributes = &svg[tag.clone()];
+
+    // without a `viewBox`, a new size only enlarges the canvas instead of scaling the content
+    if find_attribute_value(attributes, "viewBox").is_none() {
+        return Ok((mw, false));
+    }
+
     let width_value = format!("{new_width}px");
     let height_value = format!("{new_height}px");
 
     let mut replacements = Vec::with_capacity(2);
 
     for (name, value) in [("width", width_value), ("height", height_value)] {
-        if let Some(range) = find_attribute_value(&svg[tag.clone()], name) {
-            let range = (tag.start + range.start)..(tag.start + range.end);
+        match find_attribute_value(attributes, name) {
+            Some(range) => {
+                let range = (tag.start + range.start)..(tag.start + range.end);
 
-            if svg[range.clone()] != value {
-                replacements.push((range, value));
-            }
+                if svg[range.clone()] != value {
+                    replacements.push((range, value));
+                }
+            },
+            // a missing attribute is inserted right after the tag name
+            None => replacements.push((tag.start..tag.start, format!(" {name}=\"{value}\""))),
         }
     }
 
@@ -266,12 +283,18 @@ fn resize_svg(
         svg.replace_range(range, value.as_str());
     }
 
-    let new_mw = MagickWand::new();
+    let mut new_mw = MagickWand::new();
 
     set_none_background!(new_mw);
 
+    // the blob has no file extension, and its content may not start with something which ImageMagick can detect, such as a comment or a BOM
+    new_mw.set_format("SVG")?;
+
     match new_mw.read_image_blob(svg.into_bytes()) {
         Ok(_) => {
+            // the forced input format would otherwise override later blob output formats
+            new_mw.set_format("")?;
+
             // the replaced attributes are not always the ones which decide the rendered size, so the result has to be checked
             let rendered = new_mw.get_image_width() as u32 == new_width
                 && new_mw.get_image_height() as u32 == new_height;
@@ -521,11 +544,24 @@ pub(crate) fn handle_background_color(
     })
 }
 
-// Write the image out to the output resource. `extensions` are the file extension names allowed by the output format.
+// Check the output resource before reading the input image, so that a wrong output fails without doing the conversion. `extensions` are the file extension names allowed by the output format.
+pub(crate) fn check_output(output: &ImageResource, extensions: &[&str]) -> Result<(), MagickError> {
+    if let ImageResource::Path(p) = output {
+        if !has_extension(p.as_str(), extensions) {
+            return Err(MagickError(format!(
+                "The file extension name is not {}.",
+                extensions.join(" or ")
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+// Write the image out to the output resource, which has been checked by `check_output`.
 pub(crate) fn write_output(
     output: &mut ImageResource,
     mw: MagickWand,
-    extensions: &[&str],
     format: &str,
 ) -> Result<(), MagickError> {
     // `write_image` and `write_image_blob` store the current frame only
@@ -537,13 +573,6 @@ pub(crate) fn write_output(
 
     match output {
         ImageResource::Path(p) => {
-            if !has_extension(p.as_str(), extensions) {
-                return Err(MagickError(format!(
-                    "The file extension name is not {}.",
-                    extensions.join(" or ")
-                )));
-            }
-
             if multi_frame {
                 mw.write_images(p.as_str(), true)?;
             } else {
@@ -572,7 +601,7 @@ pub(crate) fn write_output(
     Ok(())
 }
 
-pub(crate) fn has_extension(path: &str, extensions: &[&str]) -> bool {
+fn has_extension(path: &str, extensions: &[&str]) -> bool {
     match Path::new(path).extension() {
         Some(extension) => extensions.iter().any(|e| extension.eq_ignore_ascii_case(e)),
         None => false,

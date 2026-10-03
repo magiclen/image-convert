@@ -1,7 +1,7 @@
 use magick_rust::{MagickError, ResolutionType};
 
 use crate::{
-    Color, Crop, ImageResource, InterlaceType, fetch_magic_wand,
+    Color, Crop, ImageResource, InterlaceType, check_output, fetch_magic_wand,
     functions::{handle_background_color, resize_and_sharpen},
     image_config::impl_image_config,
     write_output,
@@ -28,7 +28,7 @@ pub struct JPGConfig {
     pub force_to_chroma_quartered: bool,
     /// From 1 to 100, the higher the better. `None` means to keep the quality of the input image, which is the quality **ImageMagick** estimates from the quantization tables of an input JPEG image, or its own default when the input image is not a JPEG image.
     pub quality:                   Option<u8>,
-    /// The color is used for fill up the alpha background.
+    /// The color is used to fill up the alpha background.
     pub background_color:          Option<Color>,
     /// Pixels per inch.
     pub ppi:                       Option<(f64, f64)>,
@@ -84,6 +84,8 @@ pub fn to_jpg(
     input: &ImageResource,
     config: &JPGConfig,
 ) -> Result<(), MagickError> {
+    check_output(output, &["jpg", "jpeg"])?;
+
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if let Some(background_color) = config.background_color.as_ref() {
@@ -116,5 +118,5 @@ pub fn to_jpg(
         mw.set_image_units(ResolutionType::PixelsPerInch)?;
     }
 
-    write_output(output, mw, &["jpg", "jpeg"], "JPEG")
+    write_output(output, mw, "JPEG")
 }

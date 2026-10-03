@@ -1,13 +1,15 @@
 use magick_rust::{ColorspaceType, MagickError};
 
 use crate::{
-    Color, Crop, ImageConfig, ImageResource, InterlaceType, fetch_magic_wand,
+    Color, Crop, ImageConfig, ImageResource, InterlaceType, check_output, fetch_magic_wand,
     functions::{handle_background_color, resize_and_sharpen},
     write_output,
 };
 
 #[derive(Debug, Clone, PartialEq)]
 /// The output config of a RAW image with gray colors.
+///
+/// The image is only shrunk, never enlarged, and it is not sharpened.
 pub struct GrayRawConfig {
     /// Remove the metadata stored in the input image.
     pub strip_metadata:      bool,
@@ -19,7 +21,7 @@ pub struct GrayRawConfig {
     pub crop:                Option<Crop>,
     /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,
-    /// The color is used for fill up the alpha background.
+    /// The color is used to fill up the alpha background.
     pub background_color:    Option<Color>,
 }
 
@@ -99,6 +101,8 @@ pub fn to_gray_raw(
     input: &ImageResource,
     config: &GrayRawConfig,
 ) -> Result<(), MagickError> {
+    check_output(output, &["raw"])?;
+
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if let Some(background_color) = config.background_color.as_ref() {
@@ -121,5 +125,5 @@ pub fn to_gray_raw(
 
     mw.set_image_format("GRAY")?;
 
-    write_output(output, mw, &["raw"], "GRAY")
+    write_output(output, mw, "GRAY")
 }

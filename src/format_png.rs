@@ -1,8 +1,8 @@
 use magick_rust::{MagickError, ResolutionType};
 
 use crate::{
-    Crop, ImageResource, InterlaceType, fetch_magic_wand, functions::resize_and_sharpen,
-    image_config::impl_image_config, write_output,
+    Crop, ImageResource, InterlaceType, check_output, fetch_magic_wand,
+    functions::resize_and_sharpen, image_config::impl_image_config, write_output,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -70,6 +70,8 @@ pub fn to_png(
     input: &ImageResource,
     config: &PNGConfig,
 ) -> Result<(), MagickError> {
+    check_output(output, &["png"])?;
+
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if !vector {
@@ -93,5 +95,5 @@ pub fn to_png(
         mw.set_image_units(ResolutionType::PixelsPerInch)?;
     }
 
-    write_output(output, mw, &["png"], "PNG")
+    write_output(output, mw, "PNG")
 }

@@ -2,12 +2,14 @@ use std::{io::Cursor, path::Path};
 
 use image_convert::{
     BMPConfig, Color, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig,
-    PGMConfig, PNGConfig, TIFFConfig, WEBPConfig, identify_ping, to_bmp, to_gif, to_gray_raw,
-    to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
+    PGMConfig, PNGConfig, TIFFConfig, WEBPConfig, identify_ping, identify_read, to_bmp, to_gif,
+    to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
 };
 
 const INPUT_IMAGE_PATH: &str = r"tests/data/dropbox.svg";
 const INPUT_RECT_IMAGE_PATH: &str = r"tests/data/rect.svg";
+// a 200x100 SVG image which has a width and a height but no `viewBox`
+const INPUT_NO_VIEW_BOX_IMAGE_PATH: &str = r"tests/data/no_view_box.svg";
 
 #[test]
 fn get_identify() {
@@ -119,6 +121,37 @@ fn to_png_file2file_rect() {
 
     assert_eq!(1920, id.resolution.width);
     assert_eq!(960, id.resolution.height);
+}
+
+#[test]
+fn to_png_file2file_no_view_box() {
+    let source_image_path = Path::new(INPUT_NO_VIEW_BOX_IMAGE_PATH);
+
+    let target_image_path =
+        Path::join(source_image_path.parent().unwrap(), "no_view_box_output.png");
+
+    let mut config = PNGConfig::new();
+
+    config.width = 1920;
+    config.shrink_only = false;
+
+    let input = ImageResource::from_path(source_image_path);
+
+    let mut output = ImageResource::from_path(&target_image_path);
+
+    to_png(&mut output, &input, &config).unwrap();
+
+    let mut mw = None;
+
+    let id = identify_read(&mut mw, &ImageResource::from_path(target_image_path)).unwrap();
+
+    assert_eq!(1920, id.resolution.width);
+    assert_eq!(960, id.resolution.height);
+
+    // the content has to be scaled with the image instead of staying in the top-left corner
+    let pixel = mw.unwrap().export_image_pixels(1919, 959, 1, 1, "RGBA").unwrap();
+
+    assert_eq!([52, 152, 219, 255], pixel.as_slice());
 }
 
 #[test]

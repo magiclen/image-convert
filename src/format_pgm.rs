@@ -1,7 +1,7 @@
 use magick_rust::MagickError;
 
 use crate::{
-    Color, Crop, ImageResource, InterlaceType, fetch_magic_wand,
+    Color, Crop, ImageResource, InterlaceType, check_output, fetch_magic_wand,
     functions::{handle_background_color, resize_and_sharpen},
     image_config::impl_image_config,
     write_output,
@@ -24,7 +24,7 @@ pub struct PGMConfig {
     pub sharpen:             f64,
     /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,
-    /// The color is used for fill up the alpha background.
+    /// The color is used to fill up the alpha background.
     pub background_color:    Option<Color>,
 }
 
@@ -72,6 +72,8 @@ pub fn to_pgm(
     input: &ImageResource,
     config: &PGMConfig,
 ) -> Result<(), MagickError> {
+    check_output(output, &["pgm"])?;
+
     let (mut mw, vector) = fetch_magic_wand(input, config)?;
 
     if let Some(background_color) = config.background_color.as_ref() {
@@ -90,5 +92,5 @@ pub fn to_pgm(
 
     mw.set_image_format("PGM")?;
 
-    write_output(output, mw, &["pgm"], "PGM")
+    write_output(output, mw, "PGM")
 }

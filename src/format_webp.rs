@@ -1,7 +1,7 @@
 use magick_rust::{MagickError, ResolutionType};
 
 use crate::{
-    Crop, ImageResource, InterlaceType,
+    Crop, ImageResource, InterlaceType, check_output,
     functions::{fetch_magic_wand_for_format, for_each_frame, resize_and_sharpen},
     image_config::impl_image_config,
     write_output,
@@ -24,7 +24,7 @@ pub struct WEBPConfig {
     pub sharpen:             f64,
     /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,
-    /// From 0 to 100, the higher the better.
+    /// From 1 to 100, the higher the better. `0` is treated as `1`.
     pub quality:             u8,
     /// Pixels per inch.
     pub ppi:                 Option<(f64, f64)>,
@@ -74,18 +74,23 @@ impl_image_config!(WEBPConfig, true);
 /// Convert an image to a WEBP image.
 ///
 /// An animated input image keeps its animation. Writing an animation returns an error if **ImageMagick** was built without the `webpmux` delegate.
+///
+/// The pages of a multi-page document, such as a TIFF document, are not put onto a shared canvas, so pages larger than the first one are cropped.
 pub fn to_webp(
     output: &mut ImageResource,
     input: &ImageResource,
     config: &WEBPConfig,
 ) -> Result<(), MagickError> {
+    check_output(output, &["webp"])?;
+
     let (mut mw, vector) = fetch_magic_wand_for_format(input, config, "WEBP")?;
 
     if !vector {
         resize_and_sharpen(&mut mw, config)?;
     }
 
-    let quality = config.quality.min(100) as usize;
+    // ImageMagick treats `0` as an undefined quality and falls back to its default one
+    let quality = config.quality.clamp(1, 100) as usize;
 
     for_each_frame(&mut mw, |frame| {
         if config.strip_metadata {
@@ -106,5 +111,5 @@ pub fn to_webp(
 
     mw.set_interlace_scheme(InterlaceType::Line)?;
 
-    write_output(output, mw, &["webp"], "WEBP")
+    write_output(output, mw, "WEBP")
 }

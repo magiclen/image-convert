@@ -1,7 +1,7 @@
 use magick_rust::MagickError;
 
 use crate::{
-    Crop, ImageResource, InterlaceType,
+    Crop, ImageResource, InterlaceType, check_output,
     functions::{fetch_magic_wand_for_format, for_each_frame, resize_and_sharpen},
     image_config::impl_image_config,
     write_output,
@@ -66,11 +66,15 @@ impl_image_config!(GIFConfig, true);
 /// Convert an image to a GIF image.
 ///
 /// An animated input image keeps its frames. An unedited GIF keeps its layer optimization; frames which need compositing are not optimized again, so the output can be bigger.
+///
+/// The pages of a multi-page document, such as a TIFF document, are not put onto a shared canvas, so pages larger than the first one exceed the logical screen of the GIF and may be clipped by viewers.
 pub fn to_gif(
     output: &mut ImageResource,
     input: &ImageResource,
     config: &GIFConfig,
 ) -> Result<(), MagickError> {
+    check_output(output, &["gif"])?;
+
     let (mut mw, vector) = fetch_magic_wand_for_format(input, config, "GIF")?;
 
     if !vector {
@@ -89,5 +93,5 @@ pub fn to_gif(
 
     mw.set_interlace_scheme(InterlaceType::Line)?;
 
-    write_output(output, mw, &["gif"], "GIF")
+    write_output(output, mw, "GIF")
 }

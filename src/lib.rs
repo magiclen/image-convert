@@ -45,7 +45,7 @@ Supported output formats are `BMP`, `JPG`, `PNG`, `GIF`, `TIFF`, `WEBP`, `ICO`, 
 
 ## Multi-frame images
 
-Animated GIF, WebP and PNG (APNG) images and multi-page TIFF documents can be read with all of their frames. `to_gif`, `to_webp` and `to_tiff` keep the animation or pages. Animation frames are composited onto their canvas before editing or converting to another format, so transparent overlays and disposal rules are applied before cropping, resizing or removing metadata. TIFF pages keep their own sizes. Single-image output formats keep the first displayed frame; for an APNG input they keep its default PNG image without running the animation delegate.
+Animated GIF, WebP and PNG (APNG) images and multi-page TIFF documents can be read with all of their frames. `to_gif`, `to_webp` and `to_tiff` keep the animation or pages. Animation frames are composited onto their canvas before editing or converting to another format, so transparent overlays and disposal rules are applied before cropping, resizing or removing metadata. TIFF pages keep their own sizes. They are not put onto a shared canvas when converted to GIF or WebP, so pages larger than the first one may be clipped. Single-image output formats keep the first displayed frame; for an APNG input they keep its default PNG image without running the animation delegate.
 
 An unedited GIF converted to GIF keeps its original frame patches, even when the requested size equals the canvas size. WebP encoding needs complete frames, so its input is always composited. After compositing, GIF frames are not optimized again: **MagickWand** provides `MagickOptimizeImageLayers`, but the current `magick_rust` wrapper does not expose it. An edited GIF can therefore be larger than the input.
 

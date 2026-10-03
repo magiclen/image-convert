@@ -1,10 +1,10 @@
-use std::fs::File;
+use std::fs;
 
 use magick_rust::{MagickError, MagickWand};
 
 use crate::{
     Crop, ImageResource, fetch_magic_wand,
-    functions::{has_extension, resize_and_sharpen},
+    functions::{check_output, resize_and_sharpen},
     image_config::impl_image_config,
 };
 
@@ -71,7 +71,7 @@ pub struct ICOConfig {
 }
 
 impl ICOConfig {
-    /// Create a `ICOConfig` instance with default values.
+    /// Create an `ICOConfig` instance with default values.
     /// ```rust,ignore
     /// ICOConfig {
     ///     strip_metadata: true,
@@ -108,6 +108,12 @@ pub fn to_ico(
     input: &ImageResource,
     config: &ICOConfig,
 ) -> Result<(), MagickError> {
+    if let ImageResource::MagickWand(_) = output {
+        return Err("ICO cannot be output to a MagickWand instance.".into());
+    }
+
+    check_output(output, &["ico"])?;
+
     let inner_configs = ICOConfigInner::from(config);
 
     let Some((last_config, rest_configs)) = inner_configs.split_last() else {
@@ -123,6 +129,7 @@ pub fn to_ico(
 
     if vector {
         // the input is a vector image, so render it in every size instead of resizing it
+        // resizing the largest rendering down would make the smaller sizes blurrier than rendering them directly
         let mut largest = Some(mw);
 
         for config in &inner_configs {
@@ -162,29 +169,22 @@ pub fn to_ico(
         add_icon_entry(&mut icon_dir, &mut mw, last_config.strip_metadata)?;
     }
 
+    // the icon is encoded into memory first, because `IconDir::write` makes many small writes
+    let mut data = Vec::new();
+
+    icon_dir
+        .write(&mut data)
+        .map_err(|error| MagickError(format!("Cannot convert to icon data: {error}")))?;
+
     match output {
         ImageResource::Path(p) => {
-            if !has_extension(p.as_str(), &["ico"]) {
-                return Err("The file extension name is not ico.".into());
-            }
-
-            let file = match File::create(p) {
-                Ok(f) => f,
-                Err(_) => return Err("Cannot create the icon file.".into()),
-            };
-
-            icon_dir.write(file).map_err(|_| "Cannot write the icon file.")?;
+            fs::write(p.as_str(), data)
+                .map_err(|error| MagickError(format!("Cannot write the icon file: {error}")))?;
         },
         ImageResource::Data(b) => {
-            let mut data = Vec::new();
-
-            icon_dir.write(&mut data).map_err(|_| "Cannot convert to icon data.")?;
-
             *b = data;
         },
-        ImageResource::MagickWand(_) => {
-            return Err("ICO cannot be output to a MagickWand instance.".into());
-        },
+        ImageResource::MagickWand(_) => unreachable!(),
     }
 
     Ok(())
