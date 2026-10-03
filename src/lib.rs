@@ -45,14 +45,15 @@ Supported output formats are `BMP`, `JPG`, `PNG`, `GIF`, `TIFF`, `WEBP`, `ICO`, 
 
 ## Multi-frame images
 
-An animated GIF, an animated WebP and a multi-page TIFF are read with all of their frames. `to_gif`, `to_webp` and `to_tiff` keep every frame, and each frame is cropped, resized and sharpened on its own. The other output formats store a single image, so they keep the first frame and drop the rest.
+Animated GIF, WebP and PNG (APNG) images and multi-page TIFF documents can be read with all of their frames. `to_gif`, `to_webp` and `to_tiff` keep the animation or pages. Animation frames are composited onto their canvas before editing or converting to another format, so transparent overlays and disposal rules are applied before cropping, resizing or removing metadata. TIFF pages keep their own sizes. Single-image output formats keep the first displayed frame; for an APNG input they keep its default PNG image without running the animation delegate.
 
-An optimized animation stores its frames as patches of a canvas, and such a frame has to be composited onto the canvas before it can be edited on its own. That is why the frames are left untouched when the config asks for no editing at all, which keeps the layer optimization of the input image.
+An unedited GIF converted to GIF keeps its original frame patches, even when the requested size equals the canvas size. WebP encoding needs complete frames, so its input is always composited. After compositing, GIF frames are not optimized again: **MagickWand** provides `MagickOptimizeImageLayers`, but the current `magick_rust` wrapper does not expose it. An edited GIF can therefore be larger than the input.
 
-Two limitations are worth knowing:
+APNG decoding requires the **ImageMagick** APNG coder and an external `ffmpeg` delegate. Both file paths and in-memory input data are supported. The delegate uses temporary files, including for in-memory input. Decoding uses PAM to keep pixel data and transparency, then restores frame delays and the play count from the original PNG control chunks. Positive APNG delays are rounded to hundredths of a second, with a minimum of one hundredth. Output formats and ImageMagick may further limit timing precision or merge identical frames.
 
-* As soon as the frames do have to be composited, the output is no longer layer-optimized, because **MagickWand** does not expose the layer optimization which would pack them back. An animated GIF which is resized can therefore come out considerably bigger than it went in.
-* **ImageMagick** reads an animated PNG (APNG) through an external `ffmpeg` delegate only. Its built-in PNG decoder skips the animation and reads the first frame silently, so this crate treats an APNG as a still image. `ImageIdentify::has_unreadable_frames` reports when that happens.
+`identify_ping` does not run the APNG delegate: it reports the default PNG image, one frame and `has_unreadable_frames = true`. `identify_read` and conversions that keep frames decode the APNG animation or return an error if the delegate fails or the frame count is wrong. A `MagickWand` holding only the default APNG image cannot recover the missing frames; provide the original path or bytes instead. Successfully decoded APNG frames keep the `PNG` format name. APNG output is not provided.
+
+Writing animated WebP requires **ImageMagick** built with `webpmux`; otherwise the conversion returns an error instead of writing a still image.
 
 ## Quality
 
@@ -139,6 +140,7 @@ mod identify;
 mod image_config;
 mod image_resource;
 mod interlace_type;
+mod read;
 
 use std::sync::Once;
 

@@ -117,7 +117,7 @@ pub fn to_gray_raw(
 
     mw.set_image_depth(8)?;
 
-    mw.set_image_colorspace(ColorspaceType::GRAY)?;
+    mw.transform_image_colorspace(ColorspaceType::GRAY)?;
 
     mw.set_image_format("GRAY")?;
 

@@ -1,8 +1,10 @@
 use magick_rust::{CompressionType, MagickError, ResolutionType};
 
 use crate::{
-    Color, Crop, ImageResource, InterlaceType, fetch_magic_wand,
-    functions::{for_each_frame, handle_background_color, resize_and_sharpen},
+    Color, Crop, ImageResource, InterlaceType,
+    functions::{
+        fetch_magic_wand_for_format, for_each_frame, handle_background_color, resize_and_sharpen,
+    },
     image_config::impl_image_config,
     write_output,
 };
@@ -79,7 +81,7 @@ pub fn to_tiff(
     input: &ImageResource,
     config: &TIFFConfig,
 ) -> Result<(), MagickError> {
-    let (mut mw, vector) = fetch_magic_wand(input, config)?;
+    let (mut mw, vector) = fetch_magic_wand_for_format(input, config, "TIFF")?;
 
     if let Some(background_color) = config.background_color.as_ref() {
         handle_background_color(&mut mw, background_color)?;

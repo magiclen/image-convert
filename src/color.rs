@@ -22,7 +22,7 @@ impl Color {
     pub const BLUE: Self = Self::Name(ColorName::Blue);
     /// #00FFFF
     pub const CYAN: Self = Self::Name(ColorName::Cyan);
-    /// #00FF00
+    /// #008000
     pub const GREEN: Self = Self::Name(ColorName::Green);
     /// #FF00FF
     pub const MAGENTA: Self = Self::Name(ColorName::Magenta);

@@ -27,7 +27,7 @@ jobs:
       - name: Install ImageMagick (Linux)
         run: |
           sudo apt update
-          sudo apt install librsvg2-dev libwebp-dev
+          sudo apt install librsvg2-dev libwebp-dev ffmpeg
           wget https://download.imagemagick.org/archive/ImageMagick.tar.gz
           tar xf ImageMagick.tar.gz
           cd ImageMagick-*
@@ -43,7 +43,7 @@ jobs:
           brew update
           brew list pkgconf || brew install pkgconf
           brew uninstall --ignore-dependencies imagemagick || true
-          brew install imagemagick-full
+          brew install imagemagick-full ffmpeg
           magick -version
           pkg-config --modversion MagickWand
         if: runner.os == 'macOS'

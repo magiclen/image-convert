@@ -5,8 +5,9 @@ use magick_rust::{
 };
 
 use crate::{
-    Color, Crop, ImageConfig, ImageResource,
+    Color, Crop, ImageConfig, ImageResource, compute_output_size,
     image_config::{compute_output_size_if_different, compute_output_size_sharpen},
+    read::read_image_wand,
     start_call_once,
 };
 
@@ -33,31 +34,27 @@ pub fn fetch_magic_wand(
     input: &ImageResource,
     config: &impl ImageConfig,
 ) -> Result<(MagickWand, bool), MagickError> {
+    fetch_magic_wand_inner(input, config, None)
+}
+
+pub(crate) fn fetch_magic_wand_for_format(
+    input: &ImageResource,
+    config: &impl ImageConfig,
+    format: &str,
+) -> Result<(MagickWand, bool), MagickError> {
+    fetch_magic_wand_inner(input, config, Some(format))
+}
+
+fn fetch_magic_wand_inner(
+    input: &ImageResource,
+    config: &impl ImageConfig,
+    format: Option<&str>,
+) -> Result<(MagickWand, bool), MagickError> {
     start_call_once();
 
-    let mut mw = match input {
-        ImageResource::Path(p) => {
-            let mw = MagickWand::new();
+    let mut mw = read_image_wand(input, false, config.keep_frames())?;
 
-            set_none_background!(mw);
-
-            mw.read_image(p.as_str())?;
-
-            mw
-        },
-        ImageResource::Data(b) => {
-            let mw = MagickWand::new();
-
-            set_none_background!(mw);
-
-            mw.read_image_blob(b)?;
-
-            mw
-        },
-        ImageResource::MagickWand(mw) => mw.clone(),
-    };
-
-    prepare_frames(&mut mw, config)?;
+    let keep_patches = prepare_frames(&mut mw, config, format)?;
 
     // a vector image has to be re-rendered before being cropped, otherwise the crop result would be thrown away
     let (mut mw, vector) = if config.crop().is_none() {
@@ -75,7 +72,7 @@ pub fn fetch_magic_wand(
         handle_crop(&mut mw, crop)?;
     }
 
-    Ok((mw, vector))
+    Ok((mw, vector || keep_patches))
 }
 
 /// Run `f` on every frame of the image. The iterator of the wand is left on the first frame.
@@ -88,7 +85,10 @@ pub(crate) fn for_each_frame(
     mw.reset_iterator();
 
     while mw.next_image() {
-        f(mw)?;
+        if let Err(error) = f(mw) {
+            mw.reset_iterator();
+            return Err(error);
+        }
     }
 
     mw.reset_iterator();
@@ -97,81 +97,83 @@ pub(crate) fn for_each_frame(
 }
 
 // Make the frames of the image ready to be edited one by one.
-fn prepare_frames(mw: &mut MagickWand, config: &impl ImageConfig) -> Result<(), MagickError> {
+fn prepare_frames(
+    mw: &mut MagickWand,
+    config: &impl ImageConfig,
+    format: Option<&str>,
+) -> Result<bool, MagickError> {
     // reading an image leaves the iterator on the last frame instead of the first one
     mw.reset_iterator();
 
-    if mw.get_number_images() <= 1 {
-        return Ok(());
+    if !config.keep_frames() && mw.get_number_images() > 1 {
+        // Clone only the first image instead of removing the other frames by index.
+        *mw = MagickWand::new_from_image(&mw.get_image()?)?;
     }
 
-    if !config.keep_frames() {
-        // the output format stores a single image, so drop the other frames before any work is spent on them
-        let mut images = mw.images_mut();
+    let input_format = mw.get_image_format()?;
 
-        for index in (1..images.count()).rev() {
-            images.remove(index)?;
+    // Document pages have separate sizes and must not share a canvas.
+    if !matches!(input_format.as_str(), "GIF" | "WEBP" | "PNG" | "APNG" | "MNG") {
+        return Ok(false);
+    }
+
+    let (page_width, page_height, x, y) = mw.get_image_page();
+    let width = mw.get_image_width();
+    let height = mw.get_image_height();
+    let canvas_width = page_width.max(width.saturating_add(x.max(0) as usize));
+    let canvas_height = page_height.max(height.saturating_add(y.max(0) as usize));
+
+    if mw.get_number_images() == 1
+        && canvas_width == width
+        && canvas_height == height
+        && x == 0
+        && y == 0
+    {
+        return Ok(false);
+    }
+
+    let edits = config.crop().is_some()
+        || config.sharpen() > 0f64
+        || compute_output_size(
+            config.shrink_only(),
+            canvas_width as u32,
+            canvas_height as u32,
+            config.width(),
+            config.height(),
+        )
+        .is_some()
+        || ((config.respect_orientation() || config.strip_metadata()) && requires_orientation(mw));
+
+    // WebP's encoder expects complete frames, even when the input is already WebP.
+    let coalesce = !config.keep_frames()
+        || edits
+        || format.is_some_and(|format| format != input_format || format == "WEBP");
+
+    if coalesce {
+        *mw = mw.coalesce()?;
+        mw.reset_iterator();
+    }
+
+    // Skip per-frame resizing when the logical canvas already has the requested size.
+    Ok(!coalesce)
+}
+
+fn requires_orientation(mw: &MagickWand) -> bool {
+    mw.reset_iterator();
+
+    let mut required = false;
+    while mw.next_image() {
+        if !matches!(
+            mw.get_image_orientation(),
+            OrientationType::Undefined | OrientationType::TopLeft
+        ) {
+            required = true;
+            break;
         }
     }
 
-    // compositing the frames onto the canvas throws the layer optimization of an animation away and makes the output considerably bigger, so it is done only when the frames are edited afterwards
-    if edits_frames(mw, config) && requires_coalesce(mw)? {
-        *mw = mw.coalesce()?;
-    }
-
-    Ok(())
-}
-
-// Whether any operation after `prepare_frames` changes the pixels of the frames.
-fn edits_frames(mw: &MagickWand, config: &impl ImageConfig) -> bool {
-    config.crop().is_some()
-        || config.sharpen() > 0f64
-        || compute_output_size_if_different(mw, config).is_some()
-        || ((config.respect_orientation() || config.strip_metadata()) && requires_orientation(mw))
-}
-
-// Whether any frame asks to be rotated. `auto_orient` rotates the pixels of a frame without moving its offset on the canvas, so a patch frame has to be composited before that.
-fn requires_orientation(mw: &MagickWand) -> bool {
-    let images = mw.images();
-
-    (0..images.count()).any(|index| match images.get(index) {
-        Some(frame) => !matches!(
-            frame.get_image_orientation(),
-            OrientationType::Undefined | OrientationType::TopLeft
-        ),
-        None => false,
-    })
-}
-
-// Whether the frames are patches of a canvas, which is how an optimized animation stores them. Such a frame has to be composited onto the canvas before it can be edited on its own.
-fn requires_coalesce(mw: &MagickWand) -> Result<bool, MagickError> {
-    // reading the format of a frame the iterator happens to point at would be meaningless
     mw.reset_iterator();
-
-    // the pages of a document have their own sizes instead of sharing a canvas, so they must not be composited onto one
-    if !matches!(mw.get_image_format()?.as_str(), "GIF" | "WEBP" | "PNG" | "APNG" | "MNG") {
-        return Ok(false);
-    }
-
-    let images = mw.images();
-
-    let Some(first) = images.first() else {
-        return Ok(false);
-    };
-
-    let (canvas_width, canvas_height, ..) = first.get_image_page();
-
-    Ok((0..images.count()).any(|index| match images.get(index) {
-        Some(frame) => {
-            let (.., x, y) = frame.get_image_page();
-
-            x != 0
-                || y != 0
-                || frame.get_image_width() < canvas_width
-                || frame.get_image_height() < canvas_height
-        },
-        None => false,
-    }))
+    required
 }
 
 // Rotate the image into the orientation which its metadata asks for, and reset that orientation so that a viewer would not rotate it again.
@@ -460,6 +462,9 @@ fn handle_crop(mw: &mut MagickWand, crop: Crop) -> Result<(), MagickError> {
                     ((original_height_f64 * r).round() as usize, original_height)
                 };
 
+                let new_width = new_width.max(1).min(original_width);
+                let new_height = new_height.max(1).min(original_height);
+
                 let x = (original_width - new_width) / 2;
                 let y = (original_height - new_height) / 2;
 
@@ -526,6 +531,10 @@ pub(crate) fn write_output(
     // `write_image` and `write_image_blob` store the current frame only
     let multi_frame = mw.get_number_images() > 1;
 
+    if multi_frame && format == "WEBP" && !matches!(output, ImageResource::MagickWand(_)) {
+        require_webp_animation()?;
+    }
+
     match output {
         ImageResource::Path(p) => {
             if !has_extension(p.as_str(), extensions) {
@@ -567,5 +576,30 @@ pub(crate) fn has_extension(path: &str, extensions: &[&str]) -> bool {
     match Path::new(path).extension() {
         Some(extension) => extensions.iter().any(|e| extension.eq_ignore_ascii_case(e)),
         None => false,
+    }
+}
+
+fn require_webp_animation() -> Result<(), MagickError> {
+    use magick_rust::bindings::{
+        AcquireExceptionInfo, DestroyExceptionInfo, GetMagickAdjoin, GetMagickInfo,
+        MagickBooleanType,
+    };
+
+    // SAFETY: ImageMagick is initialized, the name is a C string, and the exception is released after the borrowed coder is checked.
+    let supported = unsafe {
+        let exception = AcquireExceptionInfo();
+        if exception.is_null() {
+            return Err("Cannot check the WebP animation encoder.".into());
+        }
+        let coder = GetMagickInfo(c"WEBP".as_ptr(), exception);
+        let supported = !coder.is_null() && GetMagickAdjoin(coder) == MagickBooleanType::MagickTrue;
+        DestroyExceptionInfo(exception);
+        supported
+    };
+
+    if supported {
+        Ok(())
+    } else {
+        Err("Animated WebP output requires ImageMagick with the webpmux delegate.".into())
     }
 }

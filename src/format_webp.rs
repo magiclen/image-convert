@@ -1,8 +1,8 @@
 use magick_rust::{MagickError, ResolutionType};
 
 use crate::{
-    Crop, ImageResource, InterlaceType, fetch_magic_wand,
-    functions::{for_each_frame, resize_and_sharpen},
+    Crop, ImageResource, InterlaceType,
+    functions::{fetch_magic_wand_for_format, for_each_frame, resize_and_sharpen},
     image_config::impl_image_config,
     write_output,
 };
@@ -73,13 +73,13 @@ impl_image_config!(WEBPConfig, true);
 
 /// Convert an image to a WEBP image.
 ///
-/// An animated input image keeps its frames if **ImageMagick** was built with the `webpmux` delegate.
+/// An animated input image keeps its animation. Writing an animation returns an error if **ImageMagick** was built without the `webpmux` delegate.
 pub fn to_webp(
     output: &mut ImageResource,
     input: &ImageResource,
     config: &WEBPConfig,
 ) -> Result<(), MagickError> {
-    let (mut mw, vector) = fetch_magic_wand(input, config)?;
+    let (mut mw, vector) = fetch_magic_wand_for_format(input, config, "WEBP")?;
 
     if !vector {
         resize_and_sharpen(&mut mw, config)?;

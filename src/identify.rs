@@ -1,6 +1,6 @@
-use magick_rust::{MagickError, MagickWand};
+use magick_rust::{MagickError, MagickWand, ResolutionType};
 
-use crate::{ImageResource, InterlaceType, functions::set_none_background, start_call_once};
+use crate::{ImageResource, InterlaceType, read::read_image_wand, start_call_once};
 
 /// The resolution of an image.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,9 +26,9 @@ pub struct ImageIdentify {
     pub has_alpha_channel:     bool,
     /// The number of frames of the image, such as the frames of an animated GIF or the pages of a TIFF document.
     pub number_of_frames:      usize,
-    /// Whether the image holds an animation which **ImageMagick** cannot read, in which case only the first frame is available.
+    /// Whether the image holds animation frames which were not decoded, in which case only the default PNG image is available.
     ///
-    /// It is `true` for an animated PNG (APNG), whose animation **ImageMagick** reads through an external `ffmpeg` delegate only. The built-in PNG decoder skips the animation chunks silently.
+    /// `identify_ping` does not run the APNG delegate and sets this to `true` for an APNG. `identify_read` decodes the animation through `ffmpeg` or returns an error.
     pub has_unreadable_frames: bool,
 }
 
@@ -49,7 +49,11 @@ fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, MagickError> {
 
     let interlace = mw.get_image_interlace_scheme();
 
-    let ppi = mw.get_image_resolution()?;
+    let mut ppi = mw.get_image_resolution()?;
+    if mw.get_image_units() == ResolutionType::PixelsPerCentimeter {
+        ppi.0 *= 2.54;
+        ppi.1 *= 2.54;
+    }
 
     let has_alpha_channel = mw.get_image_alpha_channel();
 
@@ -69,23 +73,6 @@ fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, MagickError> {
     })
 }
 
-// Create a `MagickWand` which holds the image of the input resource. `ping` does not decode the pixels.
-fn read_image_wand(input: &ImageResource, ping: bool) -> Result<MagickWand, MagickError> {
-    let mw = MagickWand::new();
-
-    set_none_background!(mw);
-
-    match input {
-        ImageResource::Path(p) if ping => mw.ping_image(p.as_str())?,
-        ImageResource::Path(p) => mw.read_image(p.as_str())?,
-        ImageResource::Data(b) if ping => mw.ping_image_blob(b)?,
-        ImageResource::Data(b) => mw.read_image_blob(b)?,
-        ImageResource::MagickWand(mw) => return Ok(mw.clone()),
-    }
-
-    Ok(mw)
-}
-
 /// Ping and identify an image. It does not decode the pixels, so it is faster than `identify_read`.
 pub fn identify_ping(input: &ImageResource) -> Result<ImageIdentify, MagickError> {
     start_call_once();
@@ -93,7 +80,7 @@ pub fn identify_ping(input: &ImageResource) -> Result<ImageIdentify, MagickError
     match input {
         // the input holds the image already, so there is no need to clone it
         ImageResource::MagickWand(mw) => identify_inner(mw),
-        _ => identify_inner(&read_image_wand(input, true)?),
+        _ => identify_inner(&read_image_wand(input, true, false)?),
     }
 }
 
@@ -104,7 +91,7 @@ pub fn identify_read(
 ) -> Result<ImageIdentify, MagickError> {
     start_call_once();
 
-    let mw = read_image_wand(input, false)?;
+    let mw = read_image_wand(input, false, true)?;
 
     let identify = identify_inner(&mw)?;
 

@@ -3,8 +3,8 @@ use std::{io::Cursor, path::Path};
 use image_convert::{
     BMPConfig, Crop, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig,
     PGMConfig, PNGConfig, TIFFConfig, WEBPConfig, identify_ping, identify_read,
-    magick_rust::MagickWand, start_call_once, to_bmp, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm,
-    to_png, to_tiff, to_webp,
+    magick_rust::{MagickWand, PixelWand, ResolutionType},
+    start_call_once, to_bmp, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
 };
 
 const INPUT_IMAGE_PATH: &str = r"tests/data/P1060382.JPG";
@@ -134,6 +134,40 @@ fn to_png_file2wand_crop() {
     assert_eq!(2584, mw.get_image_width());
     assert_eq!(2584, mw.get_image_height());
     assert_eq!((0, 0, 0, 0), mw.get_image_page());
+
+    config.crop = Some(Crop::Center(10_000f64, 1f64));
+    let mut output = ImageResource::MagickWand(MagickWand::new());
+    to_png(&mut output, &input, &config).unwrap();
+    let mw = output.into_magick_wand().unwrap();
+    assert_eq!(4592, mw.get_image_width());
+    assert_eq!(1, mw.get_image_height());
+}
+
+#[test]
+fn identify_ppi_from_centimeters() {
+    start_call_once();
+    let mut mw = MagickWand::new();
+    mw.new_image(1, 1, &PixelWand::new()).unwrap();
+    mw.set_image_resolution(100.0, 50.0).unwrap();
+    mw.set_image_units(ResolutionType::PixelsPerCentimeter).unwrap();
+    let input = ImageResource::Data(mw.write_image_blob("TIFF").unwrap());
+
+    assert_eq!((254.0, 127.0), identify_ping(&input).unwrap().ppi);
+    assert_eq!((254.0, 127.0), identify_read(&mut None, &input).unwrap().ppi);
+}
+
+#[test]
+fn to_gray_raw_converts_colors() {
+    start_call_once();
+    let mut mw = MagickWand::new();
+    mw.new_image(3, 1, &PixelWand::new()).unwrap();
+    mw.import_image_pixels(0, 0, 3, 1, &[255, 0, 0, 0, 255, 0, 0, 0, 255], "RGB").unwrap();
+    let input = ImageResource::MagickWand(mw);
+    let mut output = ImageResource::Data(Vec::new());
+
+    to_gray_raw(&mut output, &input, &GrayRawConfig::new()).unwrap();
+
+    assert_eq!([54, 182, 18], output.into_vec().unwrap().as_slice());
 }
 
 #[test]

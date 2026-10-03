@@ -1,8 +1,10 @@
-use std::path::Path;
+use std::{fs, path::Path};
 
 use image_convert::{
-    GIFConfig, ICOConfig, ImageResource, JPGConfig, PNGConfig, TIFFConfig, WEBPConfig,
-    identify_ping, identify_read, to_gif, to_ico, to_jpg, to_png, to_tiff, to_webp,
+    Crop, GIFConfig, ICOConfig, ImageResource, JPGConfig, PNGConfig, TIFFConfig, WEBPConfig,
+    identify_ping, identify_read,
+    magick_rust::{DisposeType, MagickWand, PixelWand},
+    start_call_once, to_gif, to_ico, to_jpg, to_png, to_tiff, to_webp,
 };
 
 // a 100x60 animated GIF made up of 4 frames, of which the last 3 are only 39x41 patches of the canvas
@@ -10,6 +12,9 @@ const INPUT_IMAGE_PATH: &str = r"tests/data/animation.gif";
 
 // a 100x60 animated PNG, whose animation ImageMagick reads through an external delegate only
 const INPUT_APNG_IMAGE_PATH: &str = r"tests/data/animation.png";
+
+// The same APNG with delays of 100, 200, 300 and 400 ms and three plays.
+const INPUT_TIMED_APNG_IMAGE_PATH: &str = r"tests/data/animation_timing.png";
 
 // a TIFF document made up of a 200x100 page and a 400x300 page
 const INPUT_MULTIPAGE_IMAGE_PATH: &str = r"tests/data/multipage.tif";
@@ -98,8 +103,12 @@ fn to_gif_data2data_keeps_the_layer_optimization() {
 
     let mut output = ImageResource::Data(Vec::new());
 
-    // the config asks for no editing at all, so the frames must not be composited onto the canvas
-    to_gif(&mut output, &input, &GIFConfig::new()).unwrap();
+    let mut config = GIFConfig::new();
+    config.width = 100;
+    config.shrink_only = false;
+
+    // The requested canvas size is unchanged, so smaller patches must not be enlarged.
+    to_gif(&mut output, &input, &config).unwrap();
 
     let mut mw = None;
 
@@ -116,6 +125,158 @@ fn to_gif_data2data_keeps_the_layer_optimization() {
 
         assert_eq!(39, frame.get_image_width());
         assert_eq!(41, frame.get_image_height());
+    }
+}
+
+#[test]
+fn read_apng_keeps_animation_timing() {
+    for input in [
+        ImageResource::from_path(INPUT_TIMED_APNG_IMAGE_PATH),
+        ImageResource::Data(fs::read(INPUT_TIMED_APNG_IMAGE_PATH).unwrap()),
+    ] {
+        let mut mw = None;
+        let id = identify_read(&mut mw, &input).unwrap();
+
+        assert_eq!("PNG", id.format);
+        assert_eq!(4, id.number_of_frames);
+        assert!(!id.has_unreadable_frames);
+
+        let mw = mw.unwrap();
+        mw.reset_iterator();
+        for delay in [10, 20, 30, 40] {
+            assert!(mw.next_image());
+            assert_eq!(100, mw.get_image_width());
+            assert_eq!(60, mw.get_image_height());
+            assert_eq!(delay, mw.get_image_delay());
+            assert_eq!(3, mw.get_image_iterations());
+        }
+    }
+}
+
+#[test]
+fn apng_to_gif_and_webp() {
+    let input = ImageResource::Data(fs::read(INPUT_TIMED_APNG_IMAGE_PATH).unwrap());
+    let mut gif = ImageResource::Data(Vec::new());
+    let mut webp = ImageResource::from_path("tests/data/animation_apng_output.webp");
+
+    to_gif(&mut gif, &input, &GIFConfig::new()).unwrap();
+
+    let mut config = WEBPConfig::new();
+    config.quality = 100;
+    to_webp(&mut webp, &input, &config).unwrap();
+
+    assert_eq!("GIF", identify_ping(&gif).unwrap().format);
+    assert_eq!("WEBP", identify_ping(&webp).unwrap().format);
+    assert_same_animation(&input, &gif);
+    assert_same_animation(&input, &webp);
+}
+
+#[test]
+fn webp_and_gif_keep_transparent_overlays() {
+    start_call_once();
+
+    let mut red = PixelWand::new();
+    red.set_color("red").unwrap();
+    let mut source = MagickWand::new();
+    source.new_image(4, 2, &red).unwrap();
+    source.set_image_delay(10).unwrap();
+    source.set_image_iterations(3).unwrap();
+    source.set_image_dispose(DisposeType::None).unwrap();
+    source.set_image_format("GIF").unwrap();
+
+    let mut transparent = PixelWand::new();
+    transparent.set_color("none").unwrap();
+    let mut overlay = MagickWand::new();
+    overlay.new_image(4, 2, &transparent).unwrap();
+    overlay.import_image_pixels(3, 0, 1, 1, &[0, 0, 255, 255], "RGBA").unwrap();
+    overlay.set_image_delay(30).unwrap();
+    overlay.set_image_dispose(DisposeType::None).unwrap();
+    overlay.set_image_format("GIF").unwrap();
+    source.add_image(&overlay).unwrap();
+
+    let input = ImageResource::MagickWand(source);
+    let mut webp = ImageResource::Data(Vec::new());
+    let mut config = WEBPConfig::new();
+    config.quality = 100;
+    to_webp(&mut webp, &input, &config).unwrap();
+    assert_same_animation(&input, &webp);
+
+    let mut gif = ImageResource::Data(Vec::new());
+    to_gif(&mut gif, &webp, &GIFConfig::new()).unwrap();
+    assert_same_animation(&input, &gif);
+
+    let mut encoded_again = ImageResource::Data(Vec::new());
+    to_webp(&mut encoded_again, &webp, &config).unwrap();
+    assert_same_animation(&input, &encoded_again);
+}
+
+fn assert_same_animation(expected: &ImageResource, actual: &ImageResource) {
+    let mut expected_mw = None;
+    let mut actual_mw = None;
+    identify_read(&mut expected_mw, expected).unwrap();
+    identify_read(&mut actual_mw, actual).unwrap();
+    let expected = expected_mw.unwrap().coalesce().unwrap();
+    let actual = actual_mw.unwrap().coalesce().unwrap();
+
+    assert_eq!(expected.get_number_images(), actual.get_number_images());
+    expected.reset_iterator();
+    actual.reset_iterator();
+    assert_eq!(expected.get_image_iterations(), actual.get_image_iterations());
+    while expected.next_image() {
+        assert!(actual.next_image());
+        assert_eq!(expected.get_image_delay(), actual.get_image_delay());
+        let width = expected.get_image_width();
+        let height = expected.get_image_height();
+        assert_eq!(width, actual.get_image_width());
+        assert_eq!(height, actual.get_image_height());
+        let expected_pixels = expected.export_image_pixels(0, 0, width, height, "RGBA").unwrap();
+        let actual_pixels = actual.export_image_pixels(0, 0, width, height, "RGBA").unwrap();
+        for (expected, actual) in expected_pixels.chunks_exact(4).zip(actual_pixels.chunks_exact(4))
+        {
+            assert_eq!(expected[3], actual[3]);
+            // Fully transparent pixels can have different hidden RGB values after encoding.
+            if expected[3] != 0 {
+                assert_eq!(expected, actual);
+            }
+        }
+    }
+}
+
+#[test]
+fn to_webp_crops_and_resizes_every_frame() {
+    let input = ImageResource::from_path(INPUT_IMAGE_PATH);
+    let mut output = ImageResource::Data(Vec::new());
+    let mut config = WEBPConfig::new();
+    config.crop = Some(Crop::Center(1.0, 1.0));
+    config.width = 30;
+    to_webp(&mut output, &input, &config).unwrap();
+
+    let mut mw = None;
+    identify_read(&mut mw, &output).unwrap();
+    let mw = mw.unwrap().coalesce().unwrap();
+    assert_eq!(4, mw.get_number_images());
+    mw.reset_iterator();
+    while mw.next_image() {
+        assert_eq!(30, mw.get_image_width());
+        assert_eq!(30, mw.get_image_height());
+        assert_eq!(20, mw.get_image_delay());
+    }
+}
+
+#[test]
+fn to_tiff_keeps_complete_animation_frames() {
+    let input = ImageResource::from_path(INPUT_IMAGE_PATH);
+    let mut output = ImageResource::Data(Vec::new());
+    to_tiff(&mut output, &input, &TIFFConfig::new()).unwrap();
+
+    let mut mw = None;
+    identify_read(&mut mw, &output).unwrap();
+    let mw = mw.unwrap();
+    assert_eq!(4, mw.get_number_images());
+    mw.reset_iterator();
+    while mw.next_image() {
+        assert_eq!(100, mw.get_image_width());
+        assert_eq!(60, mw.get_image_height());
     }
 }
 
@@ -148,6 +309,24 @@ fn to_png_data2data_keeps_the_first_frame() {
     assert_eq!(100, id.resolution.width);
     assert_eq!(60, id.resolution.height);
     assert_eq!(1, id.number_of_frames);
+}
+
+#[test]
+fn to_png_keeps_the_first_frame_canvas() {
+    start_call_once();
+    let mut color = PixelWand::new();
+    color.set_color("red").unwrap();
+    let mut mw = MagickWand::new();
+    mw.new_image(2, 2, &color).unwrap();
+    mw.reset_image_page("8x4+2+1").unwrap();
+    mw.set_image_format("GIF").unwrap();
+    let input = ImageResource::MagickWand(mw);
+    let mut output = ImageResource::Data(Vec::new());
+    to_png(&mut output, &input, &PNGConfig::new()).unwrap();
+
+    let id = identify_ping(&output).unwrap();
+    assert_eq!(8, id.resolution.width);
+    assert_eq!(4, id.resolution.height);
 }
 
 #[test]

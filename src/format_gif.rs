@@ -1,8 +1,8 @@
 use magick_rust::MagickError;
 
 use crate::{
-    Crop, ImageResource, InterlaceType, fetch_magic_wand,
-    functions::{for_each_frame, resize_and_sharpen},
+    Crop, ImageResource, InterlaceType,
+    functions::{fetch_magic_wand_for_format, for_each_frame, resize_and_sharpen},
     image_config::impl_image_config,
     write_output,
 };
@@ -65,13 +65,13 @@ impl_image_config!(GIFConfig, true);
 
 /// Convert an image to a GIF image.
 ///
-/// An animated input image keeps its frames, but the output is not layer-optimized, so it can be considerably bigger than the input.
+/// An animated input image keeps its frames. An unedited GIF keeps its layer optimization; frames which need compositing are not optimized again, so the output can be bigger.
 pub fn to_gif(
     output: &mut ImageResource,
     input: &ImageResource,
     config: &GIFConfig,
 ) -> Result<(), MagickError> {
-    let (mut mw, vector) = fetch_magic_wand(input, config)?;
+    let (mut mw, vector) = fetch_magic_wand_for_format(input, config, "GIF")?;
 
     if !vector {
         resize_and_sharpen(&mut mw, config)?;

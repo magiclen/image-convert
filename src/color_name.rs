@@ -9,7 +9,7 @@ pub enum ColorName {
     Black,
     /// #FF0000
     Red,
-    /// #00FF00
+    /// #008000
     Green,
     /// #0000FF
     Blue,
