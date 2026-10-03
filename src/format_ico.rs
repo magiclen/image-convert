@@ -3,9 +3,11 @@ use std::fs;
 use magick_rust::{MagickError, MagickWand};
 
 use crate::{
-    Crop, ImageResource, fetch_magic_wand,
-    functions::{check_output, resize_and_sharpen},
+    Crop, ImageResource, compute_output_size,
+    functions::{check_output, compute_crop_size, fetch_magic_wand_from_read, resize_and_sharpen},
     image_config::impl_image_config,
+    read::read_image_wand,
+    start_call_once,
 };
 
 #[derive(Debug)]
@@ -39,20 +41,6 @@ impl ICOConfigInner {
             .copied()
             .map(|(width, height)| Self::new(config, width, height))
             .collect()
-    }
-
-    /// The config of the largest output image.
-    /// `0` means no limit for that dimension, so it beats any other value.
-    pub fn largest(config: &ICOConfig) -> ICOConfigInner {
-        let mut width = 1u32;
-        let mut height = 1u32;
-
-        for (w, h) in config.size.iter().copied() {
-            width = if width == 0 || w == 0 { 0 } else { width.max(w) };
-            height = if height == 0 || h == 0 { 0 } else { height.max(h) };
-        }
-
-        Self::new(config, width, height)
     }
 }
 
@@ -128,51 +116,76 @@ pub fn to_ico(
 
     let mut icon_dir = ico::IconDir::new(ico::ResourceType::Icon);
 
-    // the largest size decides whether the input can be rendered as a vector image, no matter how the sizes are ordered
-    let largest_config = ICOConfigInner::largest(config);
+    start_call_once();
+    let mw = read_image_wand(input, false, false)?;
+    let mut first_index = 0;
+    let mut source = None;
 
-    let (mut mw, vector) = fetch_magic_wand(input, &largest_config)?;
+    if matches!(mw.get_image_format()?.as_str(), "SVG" | "MVG") {
+        let (width, height) = match config.crop {
+            Some(crop) => compute_crop_size(mw.get_image_width(), mw.get_image_height(), crop)?,
+            None => (mw.get_image_width(), mw.get_image_height()),
+        };
 
-    if vector {
-        // the input is a vector image, so render it in every size instead of resizing it
-        // resizing the largest rendering down would make the smaller sizes blurrier than rendering them directly
-        let mut largest = Some(mw);
+        // The largest size decides whether the input can be rendered as a vector image, no matter how the sizes are ordered.
+        let mut largest_pixels = 0;
+        for (index, config) in inner_configs.iter().enumerate() {
+            let (width, height) = compute_output_size(
+                false,
+                width as u32,
+                height as u32,
+                config.width,
+                config.height,
+            )
+            .unwrap_or((width as u32, height as u32));
+            let pixels = u64::from(width) * u64::from(height);
+            if pixels > largest_pixels {
+                first_index = index;
+                largest_pixels = pixels;
+            }
+        }
 
-        for config in &inner_configs {
-            let rendered =
-                if config.width == largest_config.width && config.height == largest_config.height {
-                    largest.take()
-                } else {
-                    None
+        // Keep the original rendering, so the other sizes do not need to read the input again.
+        source = Some(mw.clone());
+    }
+
+    let (mut mw, vector) =
+        fetch_magic_wand_from_read(mw, input, &inner_configs[first_index], None)?;
+
+    match source {
+        Some(source) if vector => {
+            // A larger size is rendered from the vector image again, and a smaller size is resized from the original rendering.
+            let mut first = Some(mw);
+
+            for (index, config) in inner_configs.iter().enumerate() {
+                let rendered = if index == first_index { first.take() } else { None };
+                let (mut mw, vector) = match rendered {
+                    Some(mw) => (mw, true),
+                    None => fetch_magic_wand_from_read(source.clone(), input, config, None)?,
                 };
 
-            let (mut mw, vector) = match rendered {
-                // the largest size has been rendered already, so do not render it a second time
-                Some(mw) => (mw, true),
-                None => fetch_magic_wand(input, config)?,
-            };
+                if !vector {
+                    resize_and_sharpen(&mut mw, config)?;
+                }
 
-            if !vector {
-                // this size is smaller than the original size of the vector image
+                add_icon_entry(&mut icon_dir, &mut mw, config.strip_metadata)?;
+            }
+        },
+        _ => {
+            // every size is resized from the original image, otherwise the later ones would be resized from another size
+            for config in rest_configs {
+                let mut mw = mw.clone();
+
                 resize_and_sharpen(&mut mw, config)?;
+
+                add_icon_entry(&mut icon_dir, &mut mw, config.strip_metadata)?;
             }
 
-            add_icon_entry(&mut icon_dir, &mut mw, config.strip_metadata)?;
-        }
-    } else {
-        // every size is resized from the original image, otherwise the later ones would be resized from another size
-        for config in rest_configs {
-            let mut mw = mw.clone();
+            // the last size does not need a clone anymore
+            resize_and_sharpen(&mut mw, last_config)?;
 
-            resize_and_sharpen(&mut mw, config)?;
-
-            add_icon_entry(&mut icon_dir, &mut mw, config.strip_metadata)?;
-        }
-
-        // the last size does not need a clone anymore
-        resize_and_sharpen(&mut mw, last_config)?;
-
-        add_icon_entry(&mut icon_dir, &mut mw, last_config.strip_metadata)?;
+            add_icon_entry(&mut icon_dir, &mut mw, last_config.strip_metadata)?;
+        },
     }
 
     // the icon is encoded into memory first, because `IconDir::write` makes many small writes

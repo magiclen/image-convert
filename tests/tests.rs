@@ -278,9 +278,90 @@ fn to_ico_data2data() {
 
     to_ico(&mut output, &input, &config).unwrap();
 
+    let id = identify_ping(&output).unwrap();
+    assert_eq!(32, id.resolution.width);
+    assert_eq!(18, id.resolution.height);
+
+    let mut png = ImageResource::Data(Vec::new());
+    to_png(&mut png, &output, &PNGConfig::new()).unwrap();
+    assert_eq!("PNG", identify_ping(&png).unwrap().format);
+
     let icon_dir = ico::IconDir::read(Cursor::new(output.into_vec().unwrap())).unwrap();
 
     assert_eq!(1, icon_dir.entries().len());
+}
+
+// An icon made up of a red 16x16 image and a blue 32x32 image, which are both compressed as PNG.
+fn png_compressed_icon(resource_type: ico::ResourceType) -> Vec<u8> {
+    let mut icon = ico::IconDir::new(resource_type);
+    for (size, rgba) in [(16, [255, 0, 0, 255]), (32, [0, 0, 255, 255])] {
+        let mut image =
+            ico::IconImage::from_rgba_data(size, size, rgba.repeat((size * size) as usize));
+        if resource_type == ico::ResourceType::Cursor {
+            image.set_cursor_hotspot(Some((0, 0)));
+        }
+        icon.add_entry(ico::IconDirEntry::encode_as_png(&image).unwrap());
+    }
+    let mut data = Vec::new();
+    icon.write(&mut data).unwrap();
+    data
+}
+
+#[test]
+fn png_compressed_icons_keep_the_largest_image() {
+    start_call_once();
+    for (resource_type, format) in
+        [(ico::ResourceType::Icon, "ICO"), (ico::ResourceType::Cursor, "CUR")]
+    {
+        let input = ImageResource::Data(png_compressed_icon(resource_type));
+        let id = identify_ping(&input).unwrap();
+        assert_eq!(format, id.format);
+        assert_eq!(2, id.number_of_frames);
+
+        let mut mw = None;
+        identify_read(&mut mw, &input).unwrap();
+        let from_data = ImageResource::MagickWand(mw.unwrap());
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join(format!("image.{}", format.to_ascii_lowercase()));
+        std::fs::write(&path, input.as_u8_slice().unwrap()).unwrap();
+        let original = MagickWand::new();
+        original.read_image(path.to_str().unwrap()).unwrap();
+        let from_path = ImageResource::from_path(&path);
+        let from_external_wand = ImageResource::MagickWand(original);
+
+        for input in [&input, &from_data, &from_path, &from_external_wand] {
+            let mut output = ImageResource::Data(Vec::new());
+            to_png(&mut output, input, &PNGConfig::new()).unwrap();
+            let mut mw = None;
+            let id = identify_read(&mut mw, &output).unwrap();
+            assert_eq!(32, id.resolution.width);
+            assert_eq!(32, id.resolution.height);
+            assert_eq!(
+                [0, 0, 255, 255],
+                mw.unwrap().export_image_pixels(0, 0, 1, 1, "RGBA").unwrap().as_slice()
+            );
+        }
+    }
+}
+
+#[test]
+fn to_tiff_keeps_every_png_compressed_icon_size() {
+    let input = ImageResource::Data(png_compressed_icon(ico::ResourceType::Icon));
+    let mut output = ImageResource::Data(Vec::new());
+
+    to_tiff(&mut output, &input, &TIFFConfig::new()).unwrap();
+
+    let mut mw = None;
+    identify_read(&mut mw, &output).unwrap();
+    let mw = mw.unwrap();
+    let images = mw.images();
+
+    // The icon images have separate sizes, so the larger one must not be clipped to the size of the first one.
+    assert_eq!(2, images.count());
+    assert_eq!(16, images.get(0).unwrap().get_image_width());
+    assert_eq!(32, images.get(1).unwrap().get_image_width());
+    assert_eq!(32, images.get(1).unwrap().get_image_height());
 }
 
 #[test]

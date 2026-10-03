@@ -57,6 +57,8 @@ APNG decoding requires the **ImageMagick** APNG coder and an external `ffmpeg` d
 
 Writing animated WebP requires **ImageMagick** built with `webpmux`; otherwise the conversion returns an error instead of writing a still image.
 
+Multi-frame output to `ImageResource::Data` is encoded in a temporary directory and then read into memory to avoid an unchecked pointer in `magick_rust` when blob encoding fails. This requires writable temporary storage and adds file I/O; the directory is cleaned up when the operation ends. If encoding or reading fails, the original output data is kept.
+
 ## Quality
 
 `JPGConfig::quality` can be `None`, which keeps the quality of the input image instead of asking for one. **ImageMagick** estimates that quality from the quantization tables of an input JPEG image, so re-encoding a JPEG image does not compress it a second time at a lower quality. It falls back to the default of **ImageMagick** when the input image is not a JPEG image.
@@ -69,7 +71,7 @@ The orientation is also applied when `strip_metadata` is `true`, even if `respec
 
 ## Async
 
-Every operation in this crate is CPU-bound. There is no I/O to wait for, so an `async fn` which does the work directly would hold an executor worker thread for the whole conversion and starve the other tasks. That is why the functions above are blocking.
+Operations in this crate include CPU-heavy image processing, blocking file I/O and external delegates. Running them directly in an `async fn` would block an executor worker thread and delay other tasks. That is why the functions above are blocking.
 
 To use this crate from async code, run it on a blocking thread pool. Enable the `tokio` feature to get the wrappers in the `asynchronous` module.
 

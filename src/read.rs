@@ -1,6 +1,7 @@
 use std::{
     fs::File,
     io::{self, BufReader, Cursor, Read, Seek},
+    path::Path,
 };
 
 use magick_rust::{AlphaChannelOption, CompositeOperator, DisposeType, MagickError, MagickWand};
@@ -12,6 +13,7 @@ pub(crate) fn read_image_wand(
     ping: bool,
     keep_frames: bool,
 ) -> Result<MagickWand, MagickError> {
+    let mut icon = None;
     let mut mw = match input {
         ImageResource::Path(p) => {
             let mw = MagickWand::new();
@@ -26,20 +28,42 @@ pub(crate) fn read_image_wand(
             mw
         },
         ImageResource::Data(b) => {
-            let mw = MagickWand::new();
-            set_none_background!(mw);
+            icon = icon_format(b);
 
-            if ping {
-                mw.ping_image_blob(b)?;
-            } else {
-                mw.read_image_blob(b)?;
+            // ImageMagick cannot detect an icon from its data, and its `SVG` reader first runs Inkscape on a file which does not hold the data, so these formats are given.
+            let format = icon.or_else(|| is_svg_data(b).then_some("RSVG"));
+
+            match format.map(|format| read_blob(b, ping, Some(format))) {
+                Some(Ok(mw)) => mw,
+                // Data which only looks like an icon or an SVG image is read again without the format, but the first error is more useful if that also fails.
+                Some(Err(error)) => {
+                    icon = None;
+                    read_blob(b, ping, None).map_err(|_| error)?
+                },
+                None => read_blob(b, ping, None)?,
             }
-            mw
         },
         ImageResource::MagickWand(mw) => mw.clone(),
     };
 
     mw.reset_iterator();
+
+    // PNG-compressed icon frames lose their container format when ImageMagick reads them.
+    let icon = icon
+        .or_else(|| match mw.get_format().ok()?.as_str() {
+            "ICO" | "ICON" => Some("ICO"),
+            "CUR" => Some("CUR"),
+            _ => None,
+        })
+        .or_else(|| match input {
+            // The filename of the image has lost the format prefix of the input path.
+            ImageResource::Path(p) => icon_path_format(p),
+            _ => icon_path_format(&mw.get_image_filename().ok()?),
+        });
+
+    if let Some(format) = icon {
+        mw.set_image_artifact(ICON_ARTIFACT, format)?;
+    }
 
     if ping || !keep_frames || !has_apng_frames(&mw) {
         return Ok(mw);
@@ -118,6 +142,84 @@ pub(crate) fn read_image_wand(
 
     output.reset_iterator();
     Ok(output)
+}
+
+// ImageMagick reports a PNG-compressed icon image as PNG, so the first image of an ICO or CUR input keeps its container format in this artifact.
+pub(crate) const ICON_ARTIFACT: &str = "image-convert:icon";
+
+// Read the data in the given format, or in the format which ImageMagick detects.
+fn read_blob(data: &[u8], ping: bool, format: Option<&str>) -> Result<MagickWand, MagickError> {
+    let mut mw = MagickWand::new();
+    set_none_background!(mw);
+
+    if let Some(format) = format {
+        mw.set_format(format)?;
+    }
+
+    if ping {
+        mw.ping_image_blob(data)?;
+    } else {
+        mw.read_image_blob(data)?;
+    }
+
+    if format.is_some() {
+        // The forced input format would otherwise override later blob output formats.
+        mw.set_format("")?;
+    }
+
+    if format == Some("RSVG") {
+        // Keep the format name which the `SVG` reader reports.
+        mw.set_image_format("SVG")?;
+    }
+
+    Ok(mw)
+}
+
+fn icon_format(data: &[u8]) -> Option<&'static str> {
+    if data.len() < 6 || data[4..6] == [0, 0] {
+        return None;
+    }
+
+    match &data[..4] {
+        [0, 0, 1, 0] => Some("ICO"),
+        [0, 0, 2, 0] => Some("CUR"),
+        _ => None,
+    }
+}
+
+// The same check which ImageMagick uses to detect SVG data.
+fn is_svg_data(data: &[u8]) -> bool {
+    data.get(1..4).is_some_and(|value| value.eq_ignore_ascii_case(b"svg"))
+        || data.get(1..5).is_some_and(|value| value.eq_ignore_ascii_case(b"?xml"))
+}
+
+fn icon_path_format(path: &str) -> Option<&'static str> {
+    let mut path = path;
+    let mut prefixed = false;
+    for prefix in ["ico:", "icon:", "cur:"] {
+        if path.get(..prefix.len()).is_some_and(|value| value.eq_ignore_ascii_case(prefix)) {
+            path = &path[prefix.len()..];
+            prefixed = true;
+            break;
+        }
+    }
+
+    if !prefixed
+        && !Path::new(path).extension().is_some_and(|extension| {
+            ["ico", "icon", "cur"].iter().any(|value| extension.eq_ignore_ascii_case(value))
+        })
+    {
+        return None;
+    }
+
+    // Only inspect regular files, since reading a stream again could block or consume input.
+    if !std::fs::metadata(path).is_ok_and(|metadata| metadata.is_file()) {
+        return None;
+    }
+
+    let mut header = [0; 6];
+    File::open(path).and_then(|mut file| file.read_exact(&mut header)).ok()?;
+    icon_format(&header)
 }
 
 // The PNG decoder reports the animation control chunk of an APNG as this property, even though it cannot decode the frames.

@@ -7,7 +7,7 @@ use magick_rust::{
 use crate::{
     Color, Crop, ImageConfig, ImageResource, compute_output_size,
     image_config::compute_output_size_sharpen,
-    read::{APNG_PROPERTY, has_apng_frames, read_image_wand},
+    read::{APNG_PROPERTY, ICON_ARTIFACT, has_apng_frames, read_image_wand},
     start_call_once,
 };
 
@@ -54,12 +54,26 @@ fn fetch_magic_wand_inner(
 ) -> Result<(MagickWand, bool), MagickError> {
     start_call_once();
 
-    let mut mw = read_image_wand(input, false, config.keep_frames())?;
+    let mw = read_image_wand(input, false, config.keep_frames())?;
 
+    fetch_magic_wand_from_read(mw, input, config, format)
+}
+
+pub(crate) fn fetch_magic_wand_from_read(
+    mut mw: MagickWand,
+    input: &ImageResource,
+    config: &impl ImageConfig,
+    format: Option<&str>,
+) -> Result<(MagickWand, bool), MagickError> {
     // A forced input format would otherwise override the output format, including ICO's RGBA data.
     mw.set_format("")?;
 
     let keep_patches = prepare_frames(&mut mw, config, format)?;
+
+    // The icon artifact is only for reading the input, so it must not reach the output.
+    if mw.get_image_artifact(ICON_ARTIFACT).is_ok() {
+        mw.delete_image_artifact(ICON_ARTIFACT)?;
+    }
 
     // a vector image rendered at the output size has been cropped already, because the crop decides the size of the rendering
     let (mut mw, vector) = fetch_vector_magic_wand(mw, input, config)?;
@@ -124,8 +138,10 @@ fn prepare_frames(
 
     let input_format = mw.get_image_format()?;
 
-    // Document pages have separate sizes and must not share a canvas.
-    if !matches!(input_format.as_str(), "GIF" | "WEBP" | "PNG" | "APNG" | "MNG") {
+    // Document pages and icon images have separate sizes and must not share a canvas.
+    if !matches!(input_format.as_str(), "GIF" | "WEBP" | "PNG" | "APNG" | "MNG")
+        || mw.get_image_artifact(ICON_ARTIFACT).is_ok()
+    {
         return Ok(false);
     }
 
@@ -178,13 +194,17 @@ fn select_largest_icon_image(mw: &mut MagickWand) -> Result<(), MagickError> {
     let mut index = 0;
     let mut largest_index = 0;
     let mut largest_pixels = 0;
+    let mut icon = mw.get_image_artifact(ICON_ARTIFACT).is_ok();
 
     while mw.next_image() {
-        // ImageMagick reports a PNG-compressed icon image as PNG, and the frames of a decoded APNG have the same size, so an APNG still keeps its first frame
-        if !matches!(mw.get_image_format()?.as_str(), "ICO" | "ICON" | "CUR" | "PNG") {
-            mw.reset_iterator();
+        match mw.get_image_format()?.as_str() {
+            "ICO" | "ICON" | "CUR" => icon = true,
+            "PNG" => (),
+            _ => {
+                mw.reset_iterator();
 
-            return Ok(());
+                return Ok(());
+            },
         }
 
         let pixels = mw.get_image_width().saturating_mul(mw.get_image_height());
@@ -197,7 +217,13 @@ fn select_largest_icon_image(mw: &mut MagickWand) -> Result<(), MagickError> {
         index += 1;
     }
 
-    mw.set_iterator_index(largest_index)
+    // PNG frames alone do not prove that the input is an icon.
+    if icon {
+        mw.set_iterator_index(largest_index)
+    } else {
+        mw.reset_iterator();
+        Ok(())
+    }
 }
 
 fn requires_orientation(mw: &MagickWand) -> bool {
@@ -604,7 +630,7 @@ fn handle_crop(mw: &mut MagickWand, crop: Crop) -> Result<(), MagickError> {
 }
 
 // Compute the size of the area which the crop keeps from an image of the given size.
-fn compute_crop_size(
+pub(crate) fn compute_crop_size(
     width: usize,
     height: usize,
     crop: Crop,
@@ -721,12 +747,27 @@ pub(crate) fn write_output(
         },
         ImageResource::Data(b) => {
             let data = if multi_frame {
-                mw.write_images_blob(format)?
+                // TODO Use `write_images_blob` again once `magick_rust` checks the blob pointer which it gets from ImageMagick.
+                // In `magick_rust` 2.1.1, a multi-frame encoding which fails after writing some data gives a null blob with a nonzero length, and `write_images_blob` still copies that length from it.
+                let directory = tempfile::Builder::new()
+                    .prefix("image-convert-")
+                    .tempdir()
+                    .map_err(|error| {
+                        MagickError(format!("Cannot create temporary image output: {error}"))
+                    })?;
+                let path = directory.path().join(format!("output.{}", format.to_ascii_lowercase()));
+                let filename =
+                    path.to_str().ok_or("The temporary output path is not valid UTF-8.")?;
+
+                mw.write_images(filename, true)?;
+
+                fs::read(&path).map_err(|error| {
+                    MagickError(format!("Cannot read temporary image output: {error}"))
+                })?
             } else {
                 mw.write_image_blob(format)?
             };
 
-            // `write_images_blob` reports a failure as an empty blob instead of an error, but the reason is still kept in the wand
             if data.is_empty() {
                 return Err(MagickError(match mw.get_exception() {
                     Ok((reason, _)) if !reason.is_empty() => {

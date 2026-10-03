@@ -1,7 +1,7 @@
 /*!
 # Asynchronous API
 
-Every operation in this crate is CPU-bound, so running it directly on an async executor would block a worker thread and starve the other tasks. The functions in this module move the work onto Tokio's blocking thread pool with `spawn_blocking` instead.
+Operations in this crate include CPU-heavy image processing, blocking file I/O and external delegates, so running them directly on an async executor would block a worker thread and delay other tasks. The functions in this module move the work onto Tokio's blocking thread pool with `spawn_blocking` instead.
 
 Because `spawn_blocking` requires `'static`, these functions take owned values instead of references, and the output resource is given back in the returned value.
 */

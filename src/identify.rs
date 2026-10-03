@@ -2,7 +2,7 @@ use magick_rust::{MagickError, MagickWand, ResolutionType};
 
 use crate::{
     ImageResource, InterlaceType,
-    read::{has_apng_frames, read_image_wand},
+    read::{ICON_ARTIFACT, has_apng_frames, read_image_wand},
     start_call_once,
 };
 
@@ -21,6 +21,7 @@ pub struct ImageIdentify {
     /// The size of the image. It is the size of the first frame if the image has more than one.
     pub resolution:            Resolution,
     /// The format of the image, such as `JPEG` or `PNG`.
+    /// An ICO or CUR image is reported as `ICO` or `CUR`, even if its first image is compressed as PNG.
     pub format:                String,
     /// The interlace scheme of the image.
     pub interlace:             InterlaceType,
@@ -49,7 +50,14 @@ fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, MagickError> {
         height,
     };
 
-    let format = mw.get_image_format()?;
+    let mut format = mw.get_image_format()?;
+
+    // ImageMagick reports a PNG-compressed icon image as PNG instead of its container format.
+    if format == "PNG" {
+        if let Ok(icon_format) = mw.get_image_artifact(ICON_ARTIFACT) {
+            format = icon_format;
+        }
+    }
 
     let interlace = mw.get_image_interlace_scheme();
 
@@ -77,14 +85,11 @@ fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, MagickError> {
 }
 
 /// Ping and identify an image. It does not decode the pixels, so it is faster than `identify_read`.
+/// A `MagickWand` input keeps its current frame and iterator state.
 pub fn identify_ping(input: &ImageResource) -> Result<ImageIdentify, MagickError> {
     start_call_once();
 
-    match input {
-        // the input holds the image already, so there is no need to clone it
-        ImageResource::MagickWand(mw) => identify_inner(mw),
-        _ => identify_inner(&read_image_wand(input, true, false)?),
-    }
+    identify_inner(&read_image_wand(input, true, false)?)
 }
 
 /// Read and identify an image. It can read an image as `MagickWand` instances.

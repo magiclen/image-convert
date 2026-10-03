@@ -1,6 +1,6 @@
 [package]
 name = "image-convert"
-version = "0.22.0"
+version = "0.23.0"
 authors = ["Magic Len <len@magiclen.org>"]
 edition = "2024"
 rust-version = "1.85"
@@ -15,6 +15,7 @@ include = ["src/**/*", "Cargo.toml", "README.md", "LICENSE"]
 [dependencies]
 ico = "0.5"
 magick_rust = "2.1.1"
+tempfile = "3.27"
 tokio = { version = "1", features = ["rt"], optional = true }
 
 [dev-dependencies]

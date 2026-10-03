@@ -367,6 +367,32 @@ fn to_ico_data2data_size_order() {
 }
 
 #[test]
+fn to_ico_keeps_sharpening_when_vector_rendering_is_unavailable() {
+    let input = ImageResource::from_path(INPUT_NO_VIEW_BOX_IMAGE_PATH);
+    let mut mw = None;
+    identify_read(&mut mw, &input).unwrap();
+    let mut mw = mw.unwrap();
+    mw.set_image_depth(8).unwrap();
+    mw.set_image_format("PNG").unwrap();
+    let raster = ImageResource::MagickWand(mw);
+
+    let mut config = ICOConfig::new();
+    config.size = vec![(200, 100), (400, 200)];
+    config.sharpen = 0.8;
+    let mut expected = ImageResource::Data(Vec::new());
+    let mut actual = ImageResource::Data(Vec::new());
+    to_ico(&mut expected, &raster, &config).unwrap();
+    to_ico(&mut actual, &input, &config).unwrap();
+
+    let expected = ico::IconDir::read(Cursor::new(expected.into_vec().unwrap())).unwrap();
+    let actual = ico::IconDir::read(Cursor::new(actual.into_vec().unwrap())).unwrap();
+    assert_eq!(expected.entries().len(), actual.entries().len());
+    for (expected, actual) in expected.entries().iter().zip(actual.entries()) {
+        assert_eq!(expected.decode().unwrap().rgba_data(), actual.decode().unwrap().rgba_data());
+    }
+}
+
+#[test]
 fn to_gray_file2file() {
     let source_image_path = Path::new(INPUT_IMAGE_PATH);
 

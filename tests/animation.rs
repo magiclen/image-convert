@@ -34,6 +34,82 @@ fn get_identify() {
 }
 
 #[test]
+fn identify_ping_keeps_wand_iterator() {
+    let mut mw = None;
+    identify_read(&mut mw, &ImageResource::from_path(INPUT_IMAGE_PATH)).unwrap();
+    let mut mw = mw.unwrap();
+    mw.set_iterator_index(1).unwrap();
+    let input = ImageResource::MagickWand(mw);
+
+    let id = identify_ping(&input).unwrap();
+    assert_eq!(100, id.resolution.width);
+    assert_eq!(4, id.number_of_frames);
+    let mw = input.as_magick_wand().unwrap();
+    assert_eq!(1, mw.get_iterator_index());
+    assert!(mw.next_image());
+    assert_eq!(2, mw.get_iterator_index());
+
+    mw.reset_iterator();
+    identify_ping(&input).unwrap();
+    assert!(mw.next_image());
+    assert_eq!(0, mw.get_iterator_index());
+
+    while mw.next_image() {}
+    let expected = mw.clone();
+    expected.reset_iterator();
+    while expected.next_image() {}
+    identify_ping(&input).unwrap();
+    assert_eq!(expected.next_image(), mw.next_image());
+    assert_eq!(expected.get_iterator_index(), mw.get_iterator_index());
+}
+
+#[test]
+fn to_png_keeps_the_first_png_frame() {
+    start_call_once();
+    let mut source = MagickWand::new();
+    for (size, color) in [(16, "red"), (32, "blue")] {
+        let mut background = PixelWand::new();
+        background.set_color(color).unwrap();
+        let mut frame = MagickWand::new();
+        frame.new_image(size, size, &background).unwrap();
+        frame.set_image_format("PNG").unwrap();
+        source.add_image(&frame).unwrap();
+    }
+    let input = ImageResource::MagickWand(source);
+    let mut output = ImageResource::Data(Vec::new());
+    to_png(&mut output, &input, &PNGConfig::new()).unwrap();
+
+    let mut mw = None;
+    let id = identify_read(&mut mw, &output).unwrap();
+    assert_eq!(16, id.resolution.width);
+    assert_eq!(16, id.resolution.height);
+    assert_eq!(
+        [255, 0, 0, 255],
+        mw.unwrap().export_image_pixels(0, 0, 1, 1, "RGBA").unwrap().as_slice()
+    );
+}
+
+#[test]
+fn failed_animation_encoding_keeps_output_data() {
+    start_call_once();
+    let mut source = MagickWand::new();
+    for color in ["red", "blue"] {
+        let mut background = PixelWand::new();
+        background.set_color(color).unwrap();
+        let mut frame = MagickWand::new();
+        // WebP cannot encode a width greater than 16383 pixels.
+        frame.new_image(16384, 1, &background).unwrap();
+        frame.set_image_format("TIFF").unwrap();
+        source.add_image(&frame).unwrap();
+    }
+    let input = ImageResource::MagickWand(source);
+    let mut output = ImageResource::Data(b"old output".to_vec());
+
+    assert!(to_webp(&mut output, &input, &WEBPConfig::new()).is_err());
+    assert_eq!(b"old output", output.as_u8_slice().unwrap());
+}
+
+#[test]
 fn get_identify_apng() {
     let input = ImageResource::from_path(INPUT_APNG_IMAGE_PATH);
 
