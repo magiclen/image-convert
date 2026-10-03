@@ -41,7 +41,8 @@ impl ICOConfigInner {
             .collect()
     }
 
-    /// The config of the largest output image. `0` means the original width or the original height, so it beats any other value.
+    /// The config of the largest output image.
+    /// `0` means no limit for that dimension, so it beats any other value.
     pub fn largest(config: &ICOConfig) -> ICOConfigInner {
         let mut width = 1u32;
         let mut height = 1u32;
@@ -60,11 +61,14 @@ impl ICOConfigInner {
 pub struct ICOConfig {
     /// Remove the metadata stored in the input image.
     pub strip_metadata:      bool,
-    /// The nonempty sizes of output images, made up of a width and a height; `0` means the original width or height.
+    /// The nonempty size limits of output images, made up of a width and a height; the aspect ratio is kept.
+    /// `0` means no limit for that dimension, and `(0, 0)` keeps the original size.
     pub size:                Vec<(u32, u32)>,
     /// Crop the image.
     pub crop:                Option<Crop>,
-    /// The higher the sharper. A negative value means auto adjustment.
+    /// The sharpening strength; `0` disables sharpening, a negative value uses auto adjustment, and a positive value is used as given.
+    /// Vector images rendered at the output size skip resizing and sharpening, even for positive values.
+    /// If a vector image needs raster resizing, this setting applies as usual.
     pub sharpen:             f64,
     /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,

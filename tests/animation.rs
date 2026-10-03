@@ -154,6 +154,54 @@ fn read_apng_keeps_animation_timing() {
 }
 
 #[test]
+fn apng_keeps_metadata() {
+    start_call_once();
+    let path = "tests/data/animation_metadata.png";
+    let original = MagickWand::new();
+    original.read_image(path).unwrap();
+    let icc = original.write_image_blob("ICC").unwrap();
+    let exif = original.write_image_blob("EXIF").unwrap();
+
+    for input in [ImageResource::from_path(path), ImageResource::Data(fs::read(path).unwrap())] {
+        let mut mw = None;
+        let id = identify_read(&mut mw, &input).unwrap();
+        assert_eq!(4, id.number_of_frames);
+        assert!(!id.has_unreadable_frames);
+        let mw = mw.unwrap();
+        mw.reset_iterator();
+        for delay in [10, 20, 30, 40] {
+            assert!(mw.next_image());
+            assert_eq!(delay, mw.get_image_delay());
+            assert_eq!(3, mw.get_image_iterations());
+            assert_eq!("APNG metadata test", mw.get_image_property("Comment").unwrap());
+            let frame = MagickWand::new_from_image(&mw.get_image().unwrap()).unwrap();
+            assert_eq!(icc, frame.write_image_blob("ICC").unwrap());
+            assert_eq!(exif, frame.write_image_blob("EXIF").unwrap());
+        }
+
+        let input = ImageResource::MagickWand(mw);
+        for strip_metadata in [false, true] {
+            let mut output = ImageResource::Data(Vec::new());
+            let mut config = TIFFConfig::new();
+            config.strip_metadata = strip_metadata;
+            to_tiff(&mut output, &input, &config).unwrap();
+            let mut mw = None;
+            identify_read(&mut mw, &output).unwrap();
+            let mw = mw.unwrap();
+            mw.reset_iterator();
+            while mw.next_image() {
+                let frame = MagickWand::new_from_image(&mw.get_image().unwrap()).unwrap();
+                if strip_metadata {
+                    assert!(frame.write_image_blob("ICC").is_err());
+                } else {
+                    assert_eq!(icc, frame.write_image_blob("ICC").unwrap());
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn apng_to_gif_and_webp() {
     let input = ImageResource::Data(fs::read(INPUT_TIMED_APNG_IMAGE_PATH).unwrap());
     let mut gif = ImageResource::Data(Vec::new());

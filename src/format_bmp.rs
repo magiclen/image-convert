@@ -12,15 +12,19 @@ use crate::{
 pub struct BMPConfig {
     /// Remove the metadata stored in the input image.
     pub strip_metadata:      bool,
-    /// The width of the output image. `0` means the original width.
+    /// The maximum width of the output image, keeping its aspect ratio.
+    /// `0` means no width limit; if both limits are `0`, the image is not resized.
     pub width:               u32,
-    /// The height of the output image. `0` means the original height.
+    /// The maximum height of the output image, keeping its aspect ratio.
+    /// `0` means no height limit; if both limits are `0`, the image is not resized.
     pub height:              u32,
     /// Crop the image.
     pub crop:                Option<Crop>,
     /// Only shrink the image, not to enlarge it.
     pub shrink_only:         bool,
-    /// The higher the sharper. A negative value means auto adjustment.
+    /// The sharpening strength; `0` disables sharpening, a negative value uses auto adjustment, and a positive value is used as given.
+    /// Vector images rendered at the output size skip resizing and sharpening, even for positive values.
+    /// If a vector image needs raster resizing, this setting applies as usual.
     pub sharpen:             f64,
     /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,

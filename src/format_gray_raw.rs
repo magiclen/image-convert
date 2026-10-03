@@ -13,9 +13,11 @@ use crate::{
 pub struct GrayRawConfig {
     /// Remove the metadata stored in the input image.
     pub strip_metadata:      bool,
-    /// The width of the output image. `0` means the original width.
+    /// The maximum width of the output image, keeping its aspect ratio.
+    /// `0` means no width limit; if both limits are `0`, the image is not resized.
     pub width:               u32,
-    /// The height of the output image. `0` means the original height.
+    /// The maximum height of the output image, keeping its aspect ratio.
+    /// `0` means no height limit; if both limits are `0`, the image is not resized.
     pub height:              u32,
     /// Crop the image.
     pub crop:                Option<Crop>,

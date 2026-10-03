@@ -1,9 +1,10 @@
-use std::{io::Cursor, path::Path};
+use std::{fs, io::Cursor, path::Path};
 
 use image_convert::{
     BMPConfig, Color, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig,
-    PGMConfig, PNGConfig, TIFFConfig, WEBPConfig, identify_ping, identify_read, to_bmp, to_gif,
-    to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
+    PGMConfig, PNGConfig, TIFFConfig, WEBPConfig, identify_ping, identify_read,
+    magick_rust::{MagickWand, PixelWand},
+    start_call_once, to_bmp, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
 };
 
 const INPUT_IMAGE_PATH: &str = r"tests/data/dropbox.svg";
@@ -152,6 +153,56 @@ fn to_png_file2file_no_view_box() {
     let pixel = mw.unwrap().export_image_pixels(1919, 959, 1, 1, "RGBA").unwrap();
 
     assert_eq!([52, 152, 219, 255], pixel.as_slice());
+}
+
+#[test]
+fn to_png_keeps_the_aspect_ratio_with_css_width() {
+    let input = ImageResource::Data(br#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50" style="width:100px" viewBox="0 0 100 50"><rect width="100" height="50" fill="red"/></svg>"#.to_vec());
+    let mut config = PNGConfig::new();
+    config.width = 200;
+    config.shrink_only = false;
+    let mut output = ImageResource::Data(Vec::new());
+
+    to_png(&mut output, &input, &config).unwrap();
+
+    let mut mw = None;
+    let id = identify_read(&mut mw, &output).unwrap();
+    assert_eq!(200, id.resolution.width);
+    assert_eq!(100, id.resolution.height);
+    assert_eq!(
+        [255, 0, 0, 255],
+        mw.unwrap().export_image_pixels(199, 99, 1, 1, "RGBA").unwrap().as_slice()
+    );
+}
+
+#[test]
+fn to_png_keeps_relative_svg_resources() {
+    start_call_once();
+    let mut color = PixelWand::new();
+    color.set_color("red").unwrap();
+    let image = MagickWand::new();
+    image.new_image(2, 2, &color).unwrap();
+    image.write_image("relative_image_output.png").unwrap();
+
+    // The internal SVG renderer resolves resources against the working directory.
+    let path = "relative source #_output.svg";
+    fs::write(path, r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="100" viewBox="0 0 200 100"><image xlink:href="relative_image_output.png" width="200" height="100"/></svg>"#).unwrap();
+    let input = ImageResource::from_path(path);
+    let mut config = PNGConfig::new();
+    config.width = 400;
+    config.shrink_only = false;
+    let mut output = ImageResource::Data(Vec::new());
+
+    to_png(&mut output, &input, &config).unwrap();
+    fs::remove_file(path).unwrap();
+    fs::remove_file("relative_image_output.png").unwrap();
+
+    let mut mw = None;
+    let id = identify_read(&mut mw, &output).unwrap();
+    assert_eq!(400, id.resolution.width);
+    assert_eq!(200, id.resolution.height);
+    let pixel = mw.unwrap().export_image_pixels(200, 100, 1, 1, "RGBA").unwrap();
+    assert_eq!([255, 0, 0, 255], pixel.as_slice());
 }
 
 #[test]

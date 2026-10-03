@@ -8,13 +8,17 @@ use crate::Crop;
 pub trait ImageConfig: Debug {
     /// Whether to remove the metadata stored in the input image.
     fn strip_metadata(&self) -> bool;
-    /// The width of the output image. `0` means the original width.
+    /// The maximum width of the output image, keeping its aspect ratio.
+    /// `0` means no width limit; if both limits are `0`, the image is not resized.
     fn width(&self) -> u32;
-    /// The height of the output image. `0` means the original height.
+    /// The maximum height of the output image, keeping its aspect ratio.
+    /// `0` means no height limit; if both limits are `0`, the image is not resized.
     fn height(&self) -> u32;
     /// How to crop the input image.
     fn crop(&self) -> Option<Crop>;
-    /// The higher the sharper. A negative value means auto adjustment.
+    /// The sharpening strength; `0` disables sharpening, a negative value uses auto adjustment, and a positive value is used as given.
+    /// Vector images rendered at the output size skip resizing and sharpening, even for positive values.
+    /// If a vector image needs raster resizing, this setting applies as usual.
     fn sharpen(&self) -> f64;
     /// Whether to shrink the image only, not to enlarge it.
     fn shrink_only(&self) -> bool;

@@ -1,4 +1,4 @@
-use std::{cmp::Reverse, fs, ops::Range, path::Path, str};
+use std::{cmp::Reverse, fmt::Write, fs, ops::Range, path::Path, str};
 
 use magick_rust::{
     AlphaChannelOption, FilterType, MagickError, MagickWand, OrientationType, PixelWand,
@@ -29,7 +29,9 @@ pub(crate) use set_none_background;
 
 /// Read an image from the input resource, and apply the orientation and the crop settings of the config to it.
 ///
-/// The returned boolean indicates whether the image has already been rendered in the output size. If it is `true`, resizing the image again is unnecessary.
+/// If the returned boolean is `true`, the conversion functions skip resizing and sharpening, even when `sharpen` is positive.
+/// A vector image rendered at the output size needs neither step; unchanged animation patches can also skip them.
+/// If it is `false`, the image uses the normal raster resizing and sharpening settings.
 pub fn fetch_magic_wand(
     input: &ImageResource,
     config: &impl ImageConfig,
@@ -53,6 +55,9 @@ fn fetch_magic_wand_inner(
     start_call_once();
 
     let mut mw = read_image_wand(input, false, config.keep_frames())?;
+
+    // A forced input format would otherwise override the output format, including ICO's RGBA data.
+    mw.set_format("")?;
 
     let keep_patches = prepare_frames(&mut mw, config, format)?;
 
@@ -223,11 +228,11 @@ fn fetch_vector_magic_wand(
 
     match input {
         ImageResource::Path(p) => match fs::read_to_string(p) {
-            Ok(svg) => resize_svg(mw, svg.as_str(), new_width, new_height),
+            Ok(svg) => resize_svg(mw, svg.as_str(), Some(p), new_width, new_height),
             Err(_) => Ok((mw, false)),
         },
         ImageResource::Data(b) => match str::from_utf8(b) {
-            Ok(svg) => resize_svg(mw, svg, new_width, new_height),
+            Ok(svg) => resize_svg(mw, svg, None, new_width, new_height),
             Err(_) => Ok((mw, false)),
         },
         ImageResource::MagickWand(_) => Ok((mw, false)),
@@ -237,6 +242,7 @@ fn fetch_vector_magic_wand(
 fn resize_svg(
     mw: MagickWand,
     svg: &str,
+    path: Option<&str>,
     new_width: u32,
     new_height: u32,
 ) -> Result<(MagickWand, bool), MagickError> {
@@ -287,6 +293,31 @@ fn resize_svg(
 
     set_none_background!(new_mw);
 
+    if let Some(path) = path {
+        // Keep the source location so the SVG renderer can resolve relative resources.
+        let path = std::path::absolute(path).map_err(|error| MagickError(error.to_string()))?;
+        let path = path.to_string_lossy();
+        #[cfg(windows)]
+        let path = path.replace('\\', "/");
+        let mut uri = if path.starts_with("//") {
+            String::from("file:")
+        } else if path.starts_with('/') {
+            String::from("file://")
+        } else {
+            String::from("file:///")
+        };
+        for byte in path.bytes() {
+            if byte.is_ascii_alphanumeric()
+                || matches!(byte, b'/' | b':' | b'-' | b'_' | b'.' | b'~')
+            {
+                uri.push(char::from(byte));
+            } else {
+                write!(uri, "%{byte:02X}").unwrap();
+            }
+        }
+        new_mw.set_filename(&uri)?;
+    }
+
     // the blob has no file extension, and its content may not start with something which ImageMagick can detect, such as a comment or a BOM
     new_mw.set_format("SVG")?;
 
@@ -294,12 +325,13 @@ fn resize_svg(
         Ok(_) => {
             // the forced input format would otherwise override later blob output formats
             new_mw.set_format("")?;
+            new_mw.set_filename("")?;
 
             // the replaced attributes are not always the ones which decide the rendered size, so the result has to be checked
             let rendered = new_mw.get_image_width() as u32 == new_width
                 && new_mw.get_image_height() as u32 == new_height;
 
-            Ok((new_mw, rendered))
+            if rendered { Ok((new_mw, true)) } else { Ok((mw, false)) }
         },
         Err(_) => Ok((mw, false)),
     }

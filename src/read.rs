@@ -3,23 +3,20 @@ use std::{
     io::{self, BufReader, Cursor, Read, Seek},
 };
 
-use magick_rust::{DisposeType, MagickError, MagickWand};
+use magick_rust::{AlphaChannelOption, CompositeOperator, DisposeType, MagickError, MagickWand};
 
-use crate::{
-    ImageResource,
-    functions::{for_each_frame, set_none_background},
-};
+use crate::{ImageResource, functions::set_none_background};
 
 pub(crate) fn read_image_wand(
     input: &ImageResource,
     ping: bool,
     keep_frames: bool,
 ) -> Result<MagickWand, MagickError> {
-    let mw = MagickWand::new();
-    set_none_background!(mw);
-
-    let mw = match input {
+    let mut mw = match input {
         ImageResource::Path(p) => {
+            let mw = MagickWand::new();
+            set_none_background!(mw);
+
             let path = png_path(p);
             if ping {
                 mw.ping_image(path)?;
@@ -29,6 +26,9 @@ pub(crate) fn read_image_wand(
             mw
         },
         ImageResource::Data(b) => {
+            let mw = MagickWand::new();
+            set_none_background!(mw);
+
             if ping {
                 mw.ping_image_blob(b)?;
             } else {
@@ -87,24 +87,37 @@ pub(crate) fn read_image_wand(
         return Err("The APNG delegate did not decode every animation frame.".into());
     }
 
-    let resolution = mw.get_image_resolution()?;
-    let units = mw.get_image_units();
-    let orientation = mw.get_image_orientation();
-    let mut delays = metadata.delays.into_iter();
+    // Keep the original profiles and properties, and replace only the pixels with each decoded frame.
+    mw.set_format("")?;
+    mw.set_image_property(APNG_PROPERTY, "")?;
+    mw.set_image_alpha_channel(AlphaChannelOption::Activate)?;
+    mw.reset_image_page("")?;
 
-    for_each_frame(&mut animation, |frame| {
+    let mut output = MagickWand::new();
+
+    for (scene, delay) in metadata.delays.into_iter().enumerate() {
+        animation.set_first_iterator();
+        if animation.get_image_width() != mw.get_image_width()
+            || animation.get_image_height() != mw.get_image_height()
+        {
+            return Err("The APNG delegate returned an unexpected frame size.".into());
+        }
+
+        mw.compose_images(&animation, CompositeOperator::Copy, true, 0, 0)?;
         // PAM has no timing data and uses ImageMagick's default time base of 100 ticks per second.
-        frame.set_image_delay(delays.next().ok_or("The APNG frame timing is missing.")?)?;
-        frame.set_image_iterations(metadata.plays as usize)?;
-        frame.set_image_dispose(DisposeType::Background)?;
-        frame.set_image_format("PNG")?;
-        frame.set_image_resolution(resolution.0, resolution.1)?;
-        frame.set_image_units(units)?;
-        frame.set_image_orientation(orientation)?;
-        Ok(())
-    })?;
+        mw.set_image_delay(delay)?;
+        mw.set_image_iterations(metadata.plays as usize)?;
+        mw.set_image_dispose(DisposeType::Background)?;
+        mw.set_image_scene(scene)?;
+        mw.set_image_format("PNG")?;
+        output.add_image(&mw)?;
 
-    Ok(animation)
+        // Release each decoded frame after copying it to keep memory use bounded.
+        animation.remove_image()?;
+    }
+
+    output.reset_iterator();
+    Ok(output)
 }
 
 // The PNG decoder reports the animation control chunk of an APNG as this property, even though it cannot decode the frames.

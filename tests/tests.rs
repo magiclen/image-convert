@@ -116,6 +116,30 @@ fn to_png_data2data() {
 }
 
 #[test]
+fn wand_input_keeps_the_requested_output_format() {
+    start_call_once();
+    let mut color = PixelWand::new();
+    color.set_color("red").unwrap();
+    let mut mw = MagickWand::new();
+    mw.new_image(2, 2, &color).unwrap();
+    mw.set_image_format("PPM").unwrap();
+    mw.set_format("PPM").unwrap();
+    let input = ImageResource::MagickWand(mw);
+    let mut output = ImageResource::Data(Vec::new());
+
+    to_png(&mut output, &input, &PNGConfig::new()).unwrap();
+    assert_eq!("PNG", identify_ping(&output).unwrap().format);
+
+    let mut config = ICOConfig::new();
+    config.size.push((2, 2));
+    to_ico(&mut output, &input, &config).unwrap();
+    let icon = ico::IconDir::read(Cursor::new(output.into_vec().unwrap())).unwrap();
+    let image = icon.entries()[0].decode().unwrap();
+    assert_eq!([255, 0, 0, 255].repeat(4), image.rgba_data());
+    assert_eq!("PPM", input.as_magick_wand().unwrap().get_format().unwrap());
+}
+
+#[test]
 fn to_png_file2wand_crop() {
     start_call_once();
 
