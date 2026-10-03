@@ -79,17 +79,17 @@ impl ICOConfig {
     /// ```rust,ignore
     /// ICOConfig {
     ///     strip_metadata: true,
-    ///     size: Vec::with_capacity(1),
+    ///     size: Vec::new(),
     ///     crop: None,
     ///     sharpen: -1f64,
     ///     respect_orientation: true,
     /// }
     /// ```
     #[inline]
-    pub fn new() -> ICOConfig {
+    pub const fn new() -> ICOConfig {
         ICOConfig {
             strip_metadata:      true,
-            size:                Vec::with_capacity(1),
+            size:                Vec::new(),
             crop:                None,
             sharpen:             -1f64,
             respect_orientation: true,
@@ -107,6 +107,8 @@ impl Default for ICOConfig {
 impl_image_config!(ICOConfigInner);
 
 /// Convert an image to an ICO image.
+///
+/// The output resource cannot be a `MagickWand` instance, because **MagickWand** does not encode the icon.
 pub fn to_ico(
     output: &mut ImageResource,
     input: &ImageResource,
@@ -219,10 +221,14 @@ fn add_icon_entry(
 
     let icon_image = ico::IconImage::from_rgba_data(width, height, data);
 
-    icon_dir.add_entry(
+    // a 256-pixel icon image is usually compressed as PNG since Windows Vista, and the readers before it cannot use such a size anyway
+    let entry = if width >= 256 || height >= 256 {
+        ico::IconDirEntry::encode_as_png(&icon_image)
+    } else {
         ico::IconDirEntry::encode_as_bmp(&icon_image)
-            .map_err(|_| "Cannot encode the icon image.")?,
-    );
+    };
+
+    icon_dir.add_entry(entry.map_err(|_| "Cannot encode the icon image.")?);
 
     Ok(())
 }

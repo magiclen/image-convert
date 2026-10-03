@@ -1,8 +1,8 @@
 use std::{fs, io::Cursor, path::Path};
 
 use image_convert::{
-    BMPConfig, Color, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig,
-    PGMConfig, PNGConfig, TIFFConfig, WEBPConfig, identify_ping, identify_read,
+    BMPConfig, Color, Crop, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType,
+    JPGConfig, PGMConfig, PNGConfig, TIFFConfig, WEBPConfig, identify_ping, identify_read,
     magick_rust::{MagickWand, PixelWand},
     start_call_once, to_bmp, to_gif, to_gray_raw, to_ico, to_jpg, to_pgm, to_png, to_tiff, to_webp,
 };
@@ -78,9 +78,16 @@ fn to_png_file2file() {
 
     let input = ImageResource::from_path(source_image_path);
 
-    let mut output = ImageResource::from_path(target_image_path);
+    let mut output = ImageResource::from_path(&target_image_path);
 
     to_png(&mut output, &input, &config).unwrap();
+
+    let mut mw = None;
+
+    identify_read(&mut mw, &ImageResource::from_path(target_image_path)).unwrap();
+
+    // a rendered vector image has only 8 bits per channel, so a deeper output would only be bigger
+    assert_eq!(8, mw.unwrap().get_image_depth());
 }
 
 #[test]
@@ -173,6 +180,28 @@ fn to_png_keeps_the_aspect_ratio_with_css_width() {
         [255, 0, 0, 255],
         mw.unwrap().export_image_pixels(199, 99, 1, 1, "RGBA").unwrap().as_slice()
     );
+}
+
+#[test]
+fn to_png_renders_the_cropped_vector_image() {
+    // the left half is red and the right half is blue
+    let input = ImageResource::Data(br#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50" viewBox="0 0 100 50"><rect width="50" height="50" fill="red"/><rect x="50" width="50" height="50" fill="blue"/></svg>"#.to_vec());
+    let mut config = PNGConfig::new();
+    config.crop = Some(Crop::Center(1f64, 1f64));
+    config.width = 400;
+    config.shrink_only = false;
+    let mut output = ImageResource::Data(Vec::new());
+
+    to_png(&mut output, &input, &config).unwrap();
+
+    let mut mw = None;
+    let id = identify_read(&mut mw, &output).unwrap();
+    assert_eq!(400, id.resolution.width);
+    assert_eq!(400, id.resolution.height);
+
+    // enlarging the cropped raster image instead of rendering the vector image would blur the edge between the colors
+    let pixels = mw.unwrap().export_image_pixels(199, 200, 2, 1, "RGBA").unwrap();
+    assert_eq!([255, 0, 0, 255, 0, 0, 255, 255], pixels.as_slice());
 }
 
 #[test]
@@ -328,6 +357,10 @@ fn to_ico_data2data_size_order() {
     assert_eq!(2, ascending.entries().len());
     assert_eq!(32, ascending.entries()[0].width());
     assert_eq!(1024, ascending.entries()[1].width());
+
+    // only the icon images of at least 256 pixels are compressed as PNG
+    assert!(!ascending.entries()[0].is_png());
+    assert!(ascending.entries()[1].is_png());
 
     // the largest size has to be rendered from the vector image, no matter how the sizes are ordered
     assert!(descending.entries()[0].data() == ascending.entries()[1].data());

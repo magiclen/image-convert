@@ -24,6 +24,7 @@ pub struct GrayRawConfig {
     /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,
     /// The color is used to fill up the alpha background.
+    /// If it is `None`, transparent pixels show the colors hidden under them, which are usually black, because this format has no alpha channel.
     pub background_color:    Option<Color>,
 }
 

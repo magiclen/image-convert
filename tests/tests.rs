@@ -284,6 +284,36 @@ fn to_ico_data2data() {
 }
 
 #[test]
+fn to_png_file2data_keeps_the_largest_icon_image() {
+    let source_image_path = Path::new(INPUT_IMAGE_PATH);
+
+    let icon_image_path =
+        Path::join(source_image_path.parent().unwrap(), "P1060382_sizes_output.ico");
+
+    let mut config = ICOConfig::new();
+
+    config.size.push((16u32, 16u32));
+    config.size.push((64u32, 64u32));
+
+    let mut icon = ImageResource::from_path(&icon_image_path);
+
+    to_ico(&mut icon, &ImageResource::from_path(source_image_path), &config).unwrap();
+
+    // ImageMagick cannot detect an icon from its data, so the icon is read from its path
+    let input = ImageResource::from_path(icon_image_path);
+
+    let mut output = ImageResource::Data(Vec::new());
+
+    to_png(&mut output, &input, &PNGConfig::new()).unwrap();
+
+    let id = identify_ping(&output).unwrap();
+
+    // the icon holds the same picture in several sizes, so the largest one is kept instead of the first one
+    assert_eq!(64, id.resolution.width);
+    assert_eq!(36, id.resolution.height);
+}
+
+#[test]
 fn to_gray_file2file() {
     let source_image_path = Path::new(INPUT_IMAGE_PATH);
 

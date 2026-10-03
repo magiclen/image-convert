@@ -33,6 +33,7 @@ pub struct JPGConfig {
     /// From 1 to 100, the higher the better. `None` means to keep the quality of the input image, which is the quality **ImageMagick** estimates from the quantization tables of an input JPEG image, or its own default when the input image is not a JPEG image.
     pub quality:                   Option<u8>,
     /// The color is used to fill up the alpha background.
+    /// If it is `None`, transparent pixels show the colors hidden under them, which are usually black, because this format has no alpha channel.
     pub background_color:          Option<Color>,
     /// Pixels per inch.
     pub ppi:                       Option<(f64, f64)>,

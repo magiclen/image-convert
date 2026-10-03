@@ -26,7 +26,7 @@ pub trait ImageConfig: Debug {
     ///
     /// The orientation is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away and leave the image lying on its side.
     fn respect_orientation(&self) -> bool;
-    /// Whether the output format can store every frame of a multi-frame input image, such as an animated GIF. `false` means to keep the first frame only.
+    /// Whether the output format can store every frame of a multi-frame input image, such as an animated GIF. `false` means to keep only one frame, which is the first frame, or the largest image of an icon.
     fn keep_frames(&self) -> bool {
         false
     }
@@ -121,20 +121,6 @@ pub(crate) fn compute_output_size_sharpen(
     }
 
     (width, height, adjusted_sharpen)
-}
-
-#[inline]
-pub(crate) fn compute_output_size_if_different(
-    mw: &MagickWand,
-    config: &impl ImageConfig,
-) -> Option<(u32, u32)> {
-    compute_output_size(
-        config.shrink_only(),
-        mw.get_image_width() as u32,
-        mw.get_image_height() as u32,
-        config.width(),
-        config.height(),
-    )
 }
 
 /// Compute the output size while keeping the aspect ratio of the input size.

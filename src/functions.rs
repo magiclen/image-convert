@@ -6,7 +6,7 @@ use magick_rust::{
 
 use crate::{
     Color, Crop, ImageConfig, ImageResource, compute_output_size,
-    image_config::{compute_output_size_if_different, compute_output_size_sharpen},
+    image_config::compute_output_size_sharpen,
     read::{APNG_PROPERTY, has_apng_frames, read_image_wand},
     start_call_once,
 };
@@ -61,20 +61,18 @@ fn fetch_magic_wand_inner(
 
     let keep_patches = prepare_frames(&mut mw, config, format)?;
 
-    // a vector image has to be re-rendered before being cropped, otherwise the crop result would be thrown away
-    let (mut mw, vector) = if config.crop().is_none() {
-        fetch_vector_magic_wand(mw, input, config)?
-    } else {
-        (mw, false)
-    };
+    // a vector image rendered at the output size has been cropped already, because the crop decides the size of the rendering
+    let (mut mw, vector) = fetch_vector_magic_wand(mw, input, config)?;
 
     // stripping the metadata throws the orientation away, so the image has to be rotated before that happens
     if config.respect_orientation() || config.strip_metadata() {
         handle_orientation(&mut mw)?;
     }
 
-    if let Some(crop) = config.crop() {
-        handle_crop(&mut mw, crop)?;
+    if !vector {
+        if let Some(crop) = config.crop() {
+            handle_crop(&mut mw, crop)?;
+        }
     }
 
     Ok((mw, vector || keep_patches))
@@ -111,7 +109,10 @@ fn prepare_frames(
     mw.reset_iterator();
 
     if !config.keep_frames() && mw.get_number_images() > 1 {
-        // Clone only the first image instead of removing the other frames by index.
+        // An icon holds the same picture in several sizes, so its largest image is kept instead of the first one.
+        select_largest_icon_image(mw)?;
+
+        // Clone only the current image instead of removing the other frames by index.
         *mw = MagickWand::new_from_image(&mw.get_image()?)?;
     }
 
@@ -169,6 +170,36 @@ fn prepare_frames(
     Ok(!coalesce)
 }
 
+// If the images are the ones of an icon, make the image which has the most pixels the current image.
+// Otherwise, the first image is the current one.
+fn select_largest_icon_image(mw: &mut MagickWand) -> Result<(), MagickError> {
+    mw.reset_iterator();
+
+    let mut index = 0;
+    let mut largest_index = 0;
+    let mut largest_pixels = 0;
+
+    while mw.next_image() {
+        // ImageMagick reports a PNG-compressed icon image as PNG, and the frames of a decoded APNG have the same size, so an APNG still keeps its first frame
+        if !matches!(mw.get_image_format()?.as_str(), "ICO" | "ICON" | "CUR" | "PNG") {
+            mw.reset_iterator();
+
+            return Ok(());
+        }
+
+        let pixels = mw.get_image_width().saturating_mul(mw.get_image_height());
+
+        if pixels > largest_pixels {
+            largest_index = index;
+            largest_pixels = pixels;
+        }
+
+        index += 1;
+    }
+
+    mw.set_iterator_index(largest_index)
+}
+
 fn requires_orientation(mw: &MagickWand) -> bool {
     mw.reset_iterator();
 
@@ -207,6 +238,7 @@ fn handle_orientation(mw: &mut MagickWand) -> Result<(), MagickError> {
 }
 
 // Re-render a vector image in the output size by rewriting its width and height, which keeps the image sharp.
+// If the returned boolean is `true`, the image has the output size and has been cropped.
 fn fetch_vector_magic_wand(
     mw: MagickWand,
     input: &ImageResource,
@@ -217,44 +249,103 @@ fn fetch_vector_magic_wand(
         _ => return Ok((mw, false)),
     }
 
-    let Some((new_width, new_height)) = compute_output_size_if_different(&mw, config) else {
+    let (mut mw, rendered) = render_vector_magic_wand(mw, input, config)?;
+
+    // SVG colors and librsvg pixels have 8 bits per channel, so a deeper image only makes the output bigger
+    if mw.get_image_depth() > 8 {
+        mw.set_image_depth(8)?;
+    }
+
+    Ok((mw, rendered))
+}
+
+fn render_vector_magic_wand(
+    mw: MagickWand,
+    input: &ImageResource,
+    config: &impl ImageConfig,
+) -> Result<(MagickWand, bool), MagickError> {
+    let width = mw.get_image_width();
+    let height = mw.get_image_height();
+
+    // the output size is computed from the area which the crop keeps
+    let (crop_width, crop_height) = match config.crop() {
+        Some(crop) => compute_crop_size(width, height, crop)?,
+        None => (width, height),
+    };
+
+    let Some((output_width, output_height)) = compute_output_size(
+        config.shrink_only(),
+        crop_width as u32,
+        crop_height as u32,
+        config.width(),
+        config.height(),
+    ) else {
+        // the image has the output size already, so it only needs to be cropped
+        if config.crop().is_some() {
+            crop_center(&mw, crop_width, crop_height)?;
+        }
+
         return Ok((mw, true));
     };
 
-    if new_width < mw.get_image_width() as u32 {
+    if (output_width as usize) < crop_width {
         // TODO ImageMagick handles the smaller size of SVG poorly, so just do resize
         return Ok((mw, false));
     }
 
-    match input {
+    // the whole image is rendered at the scale which gives the cropped area the output size, so the crop result does not need to be resized
+    let (render_width, render_height) = if config.crop().is_some() {
+        let scale = (f64::from(output_width) / crop_width as f64)
+            .max(f64::from(output_height) / crop_height as f64);
+
+        (
+            ((width as f64 * scale).round() as u32).max(output_width),
+            ((height as f64 * scale).round() as u32).max(output_height),
+        )
+    } else {
+        (output_width, output_height)
+    };
+
+    let new_mw = match input {
         ImageResource::Path(p) => match fs::read_to_string(p) {
-            Ok(svg) => resize_svg(mw, svg.as_str(), Some(p), new_width, new_height),
-            Err(_) => Ok((mw, false)),
+            Ok(svg) => resize_svg(svg.as_str(), Some(p), render_width, render_height)?,
+            Err(_) => None,
         },
         ImageResource::Data(b) => match str::from_utf8(b) {
-            Ok(svg) => resize_svg(mw, svg, None, new_width, new_height),
-            Err(_) => Ok((mw, false)),
+            Ok(svg) => resize_svg(svg, None, render_width, render_height)?,
+            Err(_) => None,
         },
-        ImageResource::MagickWand(_) => Ok((mw, false)),
+        ImageResource::MagickWand(_) => None,
+    };
+
+    let Some(new_mw) = new_mw else {
+        return Ok((mw, false));
+    };
+
+    if config.crop().is_some() {
+        crop_center(&new_mw, output_width as usize, output_height as usize)?;
     }
+
+    Ok((new_mw, true))
 }
 
+// Render the SVG image in the given size.
+// It returns `None` if the size cannot be changed by rewriting the attributes.
 fn resize_svg(
-    mw: MagickWand,
     svg: &str,
     path: Option<&str>,
     new_width: u32,
     new_height: u32,
-) -> Result<(MagickWand, bool), MagickError> {
+) -> Result<Option<MagickWand>, MagickError> {
     let Some(tag) = find_svg_tag(svg) else {
-        return Ok((mw, false));
+        return Ok(None);
     };
 
     let attributes = &svg[tag.clone()];
 
     // without a `viewBox`, a new size only enlarges the canvas instead of scaling the content
     if find_attribute_value(attributes, "viewBox").is_none() {
-        return Ok((mw, false));
+        return Ok(None);
     }
 
     let width_value = format!("{new_width}px");
@@ -277,7 +368,7 @@ fn resize_svg(
     }
 
     if replacements.is_empty() {
-        return Ok((mw, false));
+        return Ok(None);
     }
 
     // replace from the tail so that the ranges in front of the replaced one stay valid
@@ -319,7 +410,12 @@ fn resize_svg(
     }
 
     // the blob has no file extension, and its content may not start with something which ImageMagick can detect, such as a comment or a BOM
-    new_mw.set_format("SVG")?;
+    // librsvg is used directly when it is available, because for a blob the `SVG` reader first runs Inkscape (if installed) on a file which does not hold the blob, which always fails
+    let rsvg = new_mw.set_format("RSVG").is_ok();
+
+    if !rsvg {
+        new_mw.set_format("SVG")?;
+    }
 
     match new_mw.read_image_blob(svg.into_bytes()) {
         Ok(_) => {
@@ -327,13 +423,18 @@ fn resize_svg(
             new_mw.set_format("")?;
             new_mw.set_filename("")?;
 
+            if rsvg {
+                // keep the format name which the `SVG` reader reports
+                new_mw.set_image_format("SVG")?;
+            }
+
             // the replaced attributes are not always the ones which decide the rendered size, so the result has to be checked
             let rendered = new_mw.get_image_width() as u32 == new_width
                 && new_mw.get_image_height() as u32 == new_height;
 
-            if rendered { Ok((new_mw, true)) } else { Ok((mw, false)) }
+            if rendered { Ok(Some(new_mw)) } else { Ok(None) }
         },
-        Err(_) => Ok((mw, false)),
+        Err(_) => Ok(None),
     }
 }
 
@@ -494,6 +595,20 @@ fn find_attribute_value(attributes: &str, name: &str) -> Option<Range<usize>> {
 }
 
 fn handle_crop(mw: &mut MagickWand, crop: Crop) -> Result<(), MagickError> {
+    for_each_frame(mw, |frame| {
+        let (width, height) =
+            compute_crop_size(frame.get_image_width(), frame.get_image_height(), crop)?;
+
+        crop_center(frame, width, height)
+    })
+}
+
+// Compute the size of the area which the crop keeps from an image of the given size.
+fn compute_crop_size(
+    width: usize,
+    height: usize,
+    crop: Crop,
+) -> Result<(usize, usize), MagickError> {
     match crop {
         Crop::Center(w, h) => {
             let r = w / h;
@@ -502,38 +617,31 @@ fn handle_crop(mw: &mut MagickWand, crop: Crop) -> Result<(), MagickError> {
                 return Err("The ratio of CenterCrop is incorrect.".into());
             }
 
-            for_each_frame(mw, |frame| {
-                let original_width = frame.get_image_width();
-                let original_height = frame.get_image_height();
+            let width_f64 = width as f64;
+            let height_f64 = height as f64;
 
-                let original_width_f64 = original_width as f64;
-                let original_height_f64 = original_height as f64;
+            let ratio = width_f64 / height_f64;
 
-                let ratio = original_width_f64 / original_height_f64;
+            let (new_width, new_height) = if r >= ratio {
+                (width, (width_f64 / r).round() as usize)
+            } else {
+                ((height_f64 * r).round() as usize, height)
+            };
 
-                let (new_width, new_height) = if r >= ratio {
-                    (original_width, (original_width_f64 / r).round() as usize)
-                } else {
-                    ((original_height_f64 * r).round() as usize, original_height)
-                };
-
-                let new_width = new_width.max(1).min(original_width);
-                let new_height = new_height.max(1).min(original_height);
-
-                let x = (original_width - new_width) / 2;
-                let y = (original_height - new_height) / 2;
-
-                frame.crop_image(new_width, new_height, x as isize, y as isize)?;
-
-                // cropping keeps the original canvas size and the crop offset in the page geometry, which formats like GIF would store
-                frame.reset_image_page("")?;
-
-                Ok(())
-            })?;
+            Ok((new_width.max(1).min(width), new_height.max(1).min(height)))
         },
     }
+}
 
-    Ok(())
+// Crop the centered area of the given size out of the current frame.
+fn crop_center(frame: &MagickWand, width: usize, height: usize) -> Result<(), MagickError> {
+    let x = frame.get_image_width().saturating_sub(width) / 2;
+    let y = frame.get_image_height().saturating_sub(height) / 2;
+
+    frame.crop_image(width, height, x as isize, y as isize)?;
+
+    // cropping keeps the original canvas size and the crop offset in the page geometry, which formats like GIF would store
+    frame.reset_image_page("")
 }
 
 // Resize the image to the size computed from the config, and then sharpen it.
@@ -618,9 +726,14 @@ pub(crate) fn write_output(
                 mw.write_image_blob(format)?
             };
 
-            // `write_images_blob` reports a failure as an empty blob instead of an error
+            // `write_images_blob` reports a failure as an empty blob instead of an error, but the reason is still kept in the wand
             if data.is_empty() {
-                return Err(MagickError(format!("Cannot write the image as {format} data.")));
+                return Err(MagickError(match mw.get_exception() {
+                    Ok((reason, _)) if !reason.is_empty() => {
+                        format!("Cannot write the image as {format} data: {reason}")
+                    },
+                    _ => format!("Cannot write the image as {format} data."),
+                }));
             }
 
             *b = data;
