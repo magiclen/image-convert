@@ -150,7 +150,24 @@ fn unusable_profiles_keep_pixels() {
     let mut gray = DISPLAY_P3.to_vec();
     gray[16..20].copy_from_slice(b"GRAY");
 
-    for profile in [&[0x55; 200], &DISPLAY_P3[..300], gray.as_slice()] {
+    let mut short_size = DISPLAY_P3.to_vec();
+    short_size[..4].copy_from_slice(&128u32.to_be_bytes());
+    let mut large_count = DISPLAY_P3.to_vec();
+    large_count[128..132].copy_from_slice(&65535u32.to_be_bytes());
+    let mut invalid_offset = DISPLAY_P3.to_vec();
+    invalid_offset[136..140].copy_from_slice(&(DISPLAY_P3.len() as u32).to_be_bytes());
+    let mut invalid_length = DISPLAY_P3.to_vec();
+    invalid_length[140..144].copy_from_slice(&u32::MAX.to_be_bytes());
+
+    for profile in [
+        &[0x55; 200],
+        &DISPLAY_P3[..300],
+        gray.as_slice(),
+        short_size.as_slice(),
+        large_count.as_slice(),
+        invalid_offset.as_slice(),
+        invalid_length.as_slice(),
+    ] {
         let input = ImageResource::Data(jpeg_with_icc_profile(&jpeg, profile));
         let mut output = ImageResource::Data(Vec::new());
 

@@ -4,6 +4,9 @@
 Operations in this crate include CPU-heavy image processing, blocking file I/O and external delegates, so running them directly on an async executor would block a worker thread and delay other tasks. The functions in this module move the work onto Tokio's blocking thread pool with `spawn_blocking` instead.
 
 Because `spawn_blocking` requires `'static`, these functions take owned values instead of references, and the output resource is given back in the returned value.
+
+Once a blocking task starts, dropping its future or timing out does not stop it.
+Image processing, delegates and file writes can continue after the caller stops waiting.
 */
 
 use magick_rust::{MagickError, MagickWand};

@@ -38,7 +38,12 @@ async fn to_png_file2file() {
 
     let output = ImageResource::from_path(target_image_path);
 
-    to_png(output, input, config).await.unwrap();
+    let output = to_png(output, input, config).await.unwrap();
+
+    let id = identify_ping(output).await.unwrap();
+    assert_eq!("PNG", id.format);
+    assert_eq!(1920, id.resolution.width);
+    assert_eq!(1080, id.resolution.height);
 }
 
 #[tokio::test]

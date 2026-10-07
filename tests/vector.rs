@@ -171,6 +171,8 @@ fn svg_data_accepts_xml_preambles() {
         "<!-- <svg width='999'> -->\n",
         "\u{FEFF}<?xml version='1.0'?>\n<!-- image -->\n<!DOCTYPE svg [<!ENTITY name 'test > \
          value'>]>\n",
+        "<?preview <svg width='999' height='999' viewBox='0 0 999 999'> ?>\n",
+        r#"<!DOCTYPE svg [<!ENTITY preview "<svg width='999' height='999' viewBox='0 0 999 999'/>">]>"#,
     ] {
         let input = ImageResource::Data([prefix.as_bytes(), svg].concat());
         let id = identify_ping(&input).unwrap();
@@ -210,25 +212,61 @@ fn to_png_keeps_the_aspect_ratio_with_css_width() {
 }
 
 #[test]
+fn to_png_respects_none_background_feature() {
+    let input = ImageResource::Data(br#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50" viewBox="0 0 100 50"><rect width="50" height="50" fill="red"/></svg>"#.to_vec());
+    for width in [100, 400] {
+        let mut config = PNGConfig::new();
+        config.width = width;
+        config.shrink_only = false;
+        let mut output = ImageResource::Data(Vec::new());
+
+        to_png(&mut output, &input, &config).unwrap();
+
+        let mut mw = None;
+        let id = identify_read(&mut mw, &output).unwrap();
+        assert_eq!(width, id.resolution.width);
+        assert_eq!(width / 2, id.resolution.height);
+        let mw = mw.unwrap();
+        assert_eq!(
+            [255, 0, 0, 255],
+            mw.export_image_pixels(0, 0, 1, 1, "RGBA").unwrap().as_slice()
+        );
+        let background = mw.export_image_pixels((width - 1) as isize, 0, 1, 1, "RGBA").unwrap();
+        if cfg!(feature = "none-background") {
+            assert_eq!(0, background[3]);
+        } else {
+            assert_eq!([255, 255, 255, 255], background.as_slice());
+        }
+    }
+}
+
+#[test]
 fn to_png_renders_the_cropped_vector_image() {
     // the left half is red and the right half is blue
-    let input = ImageResource::Data(br#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50" viewBox="0 0 100 50"><rect width="50" height="50" fill="red"/><rect x="50" width="50" height="50" fill="blue"/></svg>"#.to_vec());
-    let mut config = PNGConfig::new();
-    config.crop = Some(Crop::Center(1f64, 1f64));
-    config.width = 400;
-    config.shrink_only = false;
-    let mut output = ImageResource::Data(Vec::new());
+    let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50" viewBox="0 0 100 50"><rect width="50" height="50" fill="red"/><rect x="50" width="50" height="50" fill="blue"/></svg>"#;
+    for prefix in [
+        "",
+        "<?preview <svg width='999' height='999' viewBox='0 0 999 999'> ?>\n",
+        r#"<!DOCTYPE svg [<!ENTITY preview "<svg width='999' height='999' viewBox='0 0 999 999'/>">]>"#,
+    ] {
+        let input = ImageResource::Data([prefix.as_bytes(), svg].concat());
+        let mut config = PNGConfig::new();
+        config.crop = Some(Crop::Center(1f64, 1f64));
+        config.width = 400;
+        config.shrink_only = false;
+        let mut output = ImageResource::Data(Vec::new());
 
-    to_png(&mut output, &input, &config).unwrap();
+        to_png(&mut output, &input, &config).unwrap();
 
-    let mut mw = None;
-    let id = identify_read(&mut mw, &output).unwrap();
-    assert_eq!(400, id.resolution.width);
-    assert_eq!(400, id.resolution.height);
+        let mut mw = None;
+        let id = identify_read(&mut mw, &output).unwrap();
+        assert_eq!(400, id.resolution.width);
+        assert_eq!(400, id.resolution.height);
 
-    // enlarging the cropped raster image instead of rendering the vector image would blur the edge between the colors
-    let pixels = mw.unwrap().export_image_pixels(199, 200, 2, 1, "RGBA").unwrap();
-    assert_eq!([255, 0, 0, 255, 0, 0, 255, 255], pixels.as_slice());
+        // enlarging the cropped raster image instead of rendering the vector image would blur the edge between the colors
+        let pixels = mw.unwrap().export_image_pixels(199, 200, 2, 1, "RGBA").unwrap();
+        assert_eq!([255, 0, 0, 255, 0, 0, 255, 255], pixels.as_slice());
+    }
 }
 
 #[test]
@@ -238,20 +276,30 @@ fn to_png_keeps_relative_svg_resources() {
     color.set_color("red").unwrap();
     let image = MagickWand::new();
     image.new_image(2, 2, &color).unwrap();
-    image.write_image("relative_image_output.png").unwrap();
+    let image_path = tempfile::Builder::new()
+        .prefix("relative_image_")
+        .suffix("_output.png")
+        .tempfile_in(".")
+        .unwrap()
+        .into_temp_path();
+    image.write_image(image_path.to_str().unwrap()).unwrap();
 
     // The internal SVG renderer resolves resources against the working directory.
-    let path = "relative source #_output.svg";
-    fs::write(path, r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="100" viewBox="0 0 200 100"><image xlink:href="relative_image_output.png" width="200" height="100"/></svg>"#).unwrap();
-    let input = ImageResource::from_path(path);
+    let path = tempfile::Builder::new()
+        .prefix("relative source #_")
+        .suffix("_output.svg")
+        .tempfile_in(".")
+        .unwrap()
+        .into_temp_path();
+    let image_filename = image_path.file_name().unwrap().to_str().unwrap();
+    fs::write(&path, format!(r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="100" viewBox="0 0 200 100"><image xlink:href="{image_filename}" width="200" height="100"/></svg>"#)).unwrap();
+    let input = ImageResource::from_path(&path);
     let mut config = PNGConfig::new();
     config.width = 400;
     config.shrink_only = false;
     let mut output = ImageResource::Data(Vec::new());
 
     to_png(&mut output, &input, &config).unwrap();
-    fs::remove_file(path).unwrap();
-    fs::remove_file("relative_image_output.png").unwrap();
 
     let mut mw = None;
     let id = identify_read(&mut mw, &output).unwrap();

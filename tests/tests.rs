@@ -1,4 +1,4 @@
-use std::{io::Cursor, path::Path};
+use std::{fs, io::Cursor, path::Path};
 
 use image_convert::{
     BMPConfig, Crop, GIFConfig, GrayRawConfig, ICOConfig, ImageResource, InterlaceType, JPGConfig,
@@ -38,6 +38,11 @@ fn to_bmp_file2file() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_bmp(&mut output, &input, &config).unwrap();
+
+    let id = identify_ping(&output).unwrap();
+    assert_eq!("BMP", id.format);
+    assert_eq!(1920, id.resolution.width);
+    assert_eq!(1080, id.resolution.height);
 }
 
 #[test]
@@ -55,6 +60,11 @@ fn to_jpg_file2file() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_jpg(&mut output, &input, &config).unwrap();
+
+    let id = identify_ping(&output).unwrap();
+    assert_eq!("JPEG", id.format);
+    assert_eq!(1920, id.resolution.width);
+    assert_eq!(1080, id.resolution.height);
 }
 
 #[test]
@@ -123,6 +133,11 @@ fn to_png_file2file() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_png(&mut output, &input, &config).unwrap();
+
+    let id = identify_ping(&output).unwrap();
+    assert_eq!("PNG", id.format);
+    assert_eq!(1920, id.resolution.width);
+    assert_eq!(1080, id.resolution.height);
 }
 
 #[test]
@@ -234,6 +249,11 @@ fn to_gif_file2file() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_gif(&mut output, &input, &config).unwrap();
+
+    let id = identify_ping(&output).unwrap();
+    assert_eq!("GIF", id.format);
+    assert_eq!(1920, id.resolution.width);
+    assert_eq!(1080, id.resolution.height);
 }
 
 #[test]
@@ -251,6 +271,11 @@ fn to_tiff_file2file() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_tiff(&mut output, &input, &config).unwrap();
+
+    let id = identify_ping(&output).unwrap();
+    assert_eq!("TIFF", id.format);
+    assert_eq!(1920, id.resolution.width);
+    assert_eq!(1080, id.resolution.height);
 }
 
 #[test]
@@ -268,6 +293,11 @@ fn to_webp_file2file() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_webp(&mut output, &input, &config).unwrap();
+
+    let id = identify_ping(&output).unwrap();
+    assert_eq!("WEBP", id.format);
+    assert_eq!(1920, id.resolution.width);
+    assert_eq!(1080, id.resolution.height);
 }
 
 #[test]
@@ -289,6 +319,15 @@ fn to_ico_file2file() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_ico(&mut output, &input, &config).unwrap();
+
+    let icon = ico::IconDir::read(fs::File::open(output.as_path().unwrap()).unwrap()).unwrap();
+    assert_eq!(5, icon.entries().len());
+    for (expected, entry) in
+        [(256, 144), (16, 9), (128, 72), (64, 36), (32, 18)].into_iter().zip(icon.entries())
+    {
+        let image = entry.decode().unwrap();
+        assert_eq!(expected, (image.width(), image.height()));
+    }
 }
 
 #[test]
@@ -434,6 +473,8 @@ fn to_gray_file2file() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_gray_raw(&mut output, &input, &config).unwrap();
+
+    assert_eq!(1920 * 1080, fs::metadata(output.as_path().unwrap()).unwrap().len());
 }
 
 #[test]
@@ -451,4 +492,9 @@ fn to_pgm_file2file() {
     let mut output = ImageResource::from_path(target_image_path);
 
     to_pgm(&mut output, &input, &config).unwrap();
+
+    let id = identify_ping(&output).unwrap();
+    assert_eq!("PGM", id.format);
+    assert_eq!(1920, id.resolution.width);
+    assert_eq!(1080, id.resolution.height);
 }

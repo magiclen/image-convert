@@ -116,7 +116,7 @@ pub fn to_tiff(
     })?;
 
     // ImageMagick's TIFF encoder reads the compression of the image info instead of the one of the image
-    // LZW is lossless and belongs to the TIFF 6.0 baseline, so every reader understands it, and the encoder turns the horizontal predictor on for it by itself
+    // LZW is lossless, and the encoder enables the horizontal predictor for it.
     mw.set_compression(CompressionType::LZW)?;
 
     mw.set_interlace_scheme(InterlaceType::Line)?;

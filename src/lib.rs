@@ -81,6 +81,9 @@ Operations in this crate include CPU-heavy image processing, blocking file I/O a
 
 To use this crate from async code, run it on a blocking thread pool. Enable the `tokio` feature to get the wrappers in the `asynchronous` module.
 
+Once a blocking task starts, dropping its future or timing out does not stop it.
+Image processing, delegates and file writes can continue after the caller stops waiting.
+
 ```toml
 [dependencies]
 image-convert = { version = "*", features = ["tokio"] }

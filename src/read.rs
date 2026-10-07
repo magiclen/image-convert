@@ -34,7 +34,7 @@ pub(crate) fn read_image_wand(
             icon = icon_format(b);
 
             // ImageMagick cannot detect an icon from its data, nor SVG data which starts with a comment or a BOM, so these formats are given.
-            let format = icon.or_else(|| is_svg_data(b).then_some("SVG"));
+            let format = icon.or_else(|| find_svg_attributes_start(b).map(|_| "SVG"));
 
             match format.map(|format| read_blob(b, ping, Some(format))) {
                 Some(Ok(mw)) => mw,
@@ -208,8 +208,9 @@ fn icon_format(data: &[u8]) -> Option<&'static str> {
     }
 }
 
-// Read the root element after the XML preamble without changing the input data.
-fn is_svg_data(data: &[u8]) -> bool {
+// Find the start of the root SVG attributes after the XML preamble.
+pub(crate) fn find_svg_attributes_start(data: &[u8]) -> Option<usize> {
+    let length = data.len();
     let mut data = data.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(data);
 
     loop {
@@ -224,9 +225,7 @@ fn is_svg_data(data: &[u8]) -> bool {
         };
 
         if let Some(closing) = closing {
-            let Some(end) = find_bytes(data, closing) else {
-                return false;
-            };
+            let end = find_bytes(data, closing)?;
             data = &data[end + closing.len()..];
         } else if data.starts_with(b"<!DOCTYPE") {
             // A document type can contain quoted text and an internal subset with its own tags.
@@ -249,16 +248,16 @@ fn is_svg_data(data: &[u8]) -> bool {
                 false
             });
 
-            let Some(end) = end else {
-                return false;
-            };
+            let end = end?;
             data = &data[end + 1..];
         } else {
-            return data.starts_with(b"<")
+            let svg = data.starts_with(b"<")
                 && data.get(1..4).is_some_and(|value| value.eq_ignore_ascii_case(b"svg"))
                 && data
                     .get(4)
                     .is_some_and(|byte| byte.is_ascii_whitespace() || matches!(byte, b'/' | b'>'));
+
+            return svg.then_some(length - data.len() + 4);
         }
     }
 }

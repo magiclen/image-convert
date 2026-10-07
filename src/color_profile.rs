@@ -40,13 +40,36 @@ fn is_usable_profile(mw: &MagickWand, profile: &[u8]) -> bool {
         _ => return false,
     };
 
-    &header[16..20] == color_space
+    if &header[16..20] != color_space {
+        return false;
+    }
+
+    let Some(profile) = profile.get(..size).filter(|profile| profile.len() >= 132) else {
+        return false;
+    };
+    let count = u32::from_be_bytes(profile[128..132].try_into().unwrap()) as usize;
+
+    // The tag count and each data range must fit inside the declared profile size.
+    if count > (size - 132) / 12 {
+        return false;
+    }
+    let table_end = 132 + count * 12;
+
+    profile[132..table_end].chunks_exact(12).all(|tag| {
+        let offset = u32::from_be_bytes(tag[4..8].try_into().unwrap()) as usize;
+        let length = u32::from_be_bytes(tag[8..12].try_into().unwrap()) as usize;
+
+        offset >= table_end
+            && length >= 8
+            && offset.checked_add(length).is_some_and(|end| end <= size)
+    })
 }
 
 // Read the XYZ values of the red, green and blue colorant tags from the tag table which follows the header.
 fn read_colorants(profile: &[u8]) -> Option<[f64; 9]> {
     let count = u32::from_be_bytes(profile.get(128..132)?.try_into().ok()?) as usize;
-    let tags = profile.get(132..)?.chunks_exact(12).take(count);
+    let table_end = 132usize.checked_add(count.checked_mul(12)?)?;
+    let tags = profile.get(132..table_end)?.chunks_exact(12);
 
     let mut colorants = [0f64; 9];
 
@@ -54,6 +77,11 @@ fn read_colorants(profile: &[u8]) -> Option<[f64; 9]> {
     {
         let tag = tags.clone().find(|tag| &tag[..4] == signature)?;
         let offset = u32::from_be_bytes(tag[4..8].try_into().ok()?) as usize;
+        let length = u32::from_be_bytes(tag[8..12].try_into().ok()?) as usize;
+
+        if length < 20 {
+            return None;
+        }
 
         // An XYZ tag holds its type signature, 4 reserved bytes and 3 s15Fixed16 numbers.
         let data = profile.get(offset..offset.checked_add(20)?)?;

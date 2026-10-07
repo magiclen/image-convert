@@ -9,7 +9,10 @@ use crate::{
     color_profile::{SrgbCheck, convert_background_color, convert_to_srgb},
     compute_output_size,
     image_config::compute_output_size_sharpen,
-    read::{APNG_PROPERTY, ICON_ARTIFACT, has_apng_frames, read_image_wand, set_svg_format},
+    read::{
+        APNG_PROPERTY, ICON_ARTIFACT, find_svg_attributes_start, has_apng_frames, read_image_wand,
+        set_svg_format,
+    },
     start_call_once,
 };
 
@@ -472,55 +475,9 @@ fn resize_svg(
 // Find the range of the attribute part of the `<svg ...>` start tag.
 fn find_svg_tag(svg: &str) -> Option<Range<usize>> {
     let bytes = svg.as_bytes();
+    let start = find_svg_attributes_start(bytes)?;
 
-    let mut index = 0;
-
-    while index + 4 <= bytes.len() {
-        if bytes[index] == b'<' {
-            // a comment or a CDATA section may hold something which looks like a start tag
-            if let Some(end) = skip_ignorable_section(bytes, index) {
-                index = end;
-
-                continue;
-            }
-
-            if bytes[index + 1..index + 4].eq_ignore_ascii_case(b"svg") {
-                let attributes_start = index + 4;
-
-                // the tag name has to be exactly `svg`
-                if attributes_start == bytes.len()
-                    || bytes[attributes_start].is_ascii_whitespace()
-                    || matches!(bytes[attributes_start], b'>' | b'/')
-                {
-                    return find_tag_end(bytes, attributes_start).map(|end| attributes_start..end);
-                }
-            }
-        }
-
-        index += 1;
-    }
-
-    None
-}
-
-// If a comment or a CDATA section starts at `index`, return the index right after its end, or the length of the input if it is never closed.
-fn skip_ignorable_section(bytes: &[u8], index: usize) -> Option<usize> {
-    const SECTIONS: [(&[u8], &[u8]); 2] = [(b"<!--", b"-->"), (b"<![CDATA[", b"]]>")];
-
-    let rest = &bytes[index..];
-
-    for (opening, closing) in SECTIONS {
-        if rest.starts_with(opening) {
-            let content_start = index + opening.len();
-
-            return match find_bytes(&bytes[content_start..], closing) {
-                Some(offset) => Some(content_start + offset + closing.len()),
-                None => Some(bytes.len()),
-            };
-        }
-    }
-
-    None
+    find_tag_end(bytes, start).map(|end| start..end)
 }
 
 pub(crate) fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
