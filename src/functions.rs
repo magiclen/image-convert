@@ -5,9 +5,11 @@ use magick_rust::{
 };
 
 use crate::{
-    Color, Crop, ImageConfig, ImageResource, compute_output_size,
+    Color, Crop, ImageConfig, ImageResource,
+    color_profile::{SrgbCheck, convert_background_color, convert_to_srgb},
+    compute_output_size,
     image_config::compute_output_size_sharpen,
-    read::{APNG_PROPERTY, ICON_ARTIFACT, has_apng_frames, read_image_wand},
+    read::{APNG_PROPERTY, ICON_ARTIFACT, has_apng_frames, read_image_wand, set_svg_format},
     start_call_once,
 };
 
@@ -28,6 +30,7 @@ macro_rules! set_none_background {
 pub(crate) use set_none_background;
 
 /// Read an image from the input resource, and apply the orientation and the crop settings of the config to it.
+/// Images with an ICC profile are converted to sRGB when `strip_metadata` is `true`.
 ///
 /// If the returned boolean is `true`, the conversion functions skip resizing and sharpening, even when `sharpen` is positive.
 /// A vector image rendered at the output size needs neither step; unchanged animation patches can also skip them.
@@ -134,6 +137,13 @@ fn prepare_frames(
     if !config.keep_frames() && has_apng_frames(mw) {
         // `magick_rust` cannot delete a property, so an empty value marks it as removed
         mw.set_image_property(APNG_PROPERTY, "")?;
+    }
+
+    // Color profiles must be applied before compositing, and before formats which cannot keep them.
+    if config.strip_metadata() || matches!(format, Some("ICO" | "PGM" | "GRAY")) {
+        let mut check = SrgbCheck::default();
+
+        for_each_frame(mw, |frame| convert_to_srgb(frame, &mut check))?;
     }
 
     let input_format = mw.get_image_format()?;
@@ -436,12 +446,7 @@ fn resize_svg(
     }
 
     // the blob has no file extension, and its content may not start with something which ImageMagick can detect, such as a comment or a BOM
-    // librsvg is used directly when it is available, because for a blob the `SVG` reader first runs Inkscape (if installed) on a file which does not hold the blob, which always fails
-    let rsvg = new_mw.set_format("RSVG").is_ok();
-
-    if !rsvg {
-        new_mw.set_format("SVG")?;
-    }
+    let rsvg = set_svg_format(&mut new_mw)?;
 
     match new_mw.read_image_blob(svg.into_bytes()) {
         Ok(_) => {
@@ -518,7 +523,7 @@ fn skip_ignorable_section(bytes: &[u8], index: usize) -> Option<usize> {
     None
 }
 
-fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+pub(crate) fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack.windows(needle.len()).position(|window| window == needle)
 }
 
@@ -702,8 +707,11 @@ pub(crate) fn handle_background_color(
 
     pw.set_color(color.to_magick_color().as_ref())?;
 
+    let mut check = SrgbCheck::default();
+
     for_each_frame(mw, |frame| {
-        frame.set_image_background_color(&pw)?;
+        let converted = convert_background_color(frame, &pw, &mut check)?;
+        frame.set_image_background_color(converted.as_ref().unwrap_or(&pw))?;
         frame.set_image_alpha_channel(AlphaChannelOption::Remove)?;
 
         Ok(())

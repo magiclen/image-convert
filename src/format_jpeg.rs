@@ -11,6 +11,7 @@ use crate::{
 /// The output config of a JPEG image.
 pub struct JPGConfig {
     /// Remove the metadata stored in the input image.
+    /// Images with an ICC profile are converted to sRGB before the profile is removed.
     pub strip_metadata:            bool,
     /// The maximum width of the output image, keeping its aspect ratio.
     /// `0` means no width limit; if both limits are `0`, the image is not resized.
@@ -106,7 +107,8 @@ pub fn to_jpg(
     }
 
     if config.force_to_chroma_quartered {
-        mw.set_sampling_factors(&[2f64, 1f64, 1f64])?;
+        // This API writes JPEG ratio notation, so these values mean 4:2:0.
+        mw.set_sampling_factors(&[4f64, 2f64, 0f64])?;
     }
 
     // the encoder falls back to the quality of the image itself, which is the one ImageMagick estimated when it read an input JPEG image

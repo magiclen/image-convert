@@ -6,7 +6,10 @@ use std::{
 
 use magick_rust::{AlphaChannelOption, CompositeOperator, DisposeType, MagickError, MagickWand};
 
-use crate::{ImageResource, functions::set_none_background};
+use crate::{
+    ImageResource,
+    functions::{find_bytes, set_none_background},
+};
 
 pub(crate) fn read_image_wand(
     input: &ImageResource,
@@ -30,8 +33,8 @@ pub(crate) fn read_image_wand(
         ImageResource::Data(b) => {
             icon = icon_format(b);
 
-            // ImageMagick cannot detect an icon from its data, and its `SVG` reader first runs Inkscape on a file which does not hold the data, so these formats are given.
-            let format = icon.or_else(|| is_svg_data(b).then_some("RSVG"));
+            // ImageMagick cannot detect an icon from its data, nor SVG data which starts with a comment or a BOM, so these formats are given.
+            let format = icon.or_else(|| is_svg_data(b).then_some("SVG"));
 
             match format.map(|format| read_blob(b, ping, Some(format))) {
                 Some(Ok(mw)) => mw,
@@ -152,9 +155,15 @@ fn read_blob(data: &[u8], ping: bool, format: Option<&str>) -> Result<MagickWand
     let mut mw = MagickWand::new();
     set_none_background!(mw);
 
-    if let Some(format) = format {
-        mw.set_format(format)?;
-    }
+    let rsvg = match format {
+        Some("SVG") => set_svg_format(&mut mw)?,
+        Some(format) => {
+            mw.set_format(format)?;
+
+            false
+        },
+        None => false,
+    };
 
     if ping {
         mw.ping_image_blob(data)?;
@@ -167,12 +176,24 @@ fn read_blob(data: &[u8], ping: bool, format: Option<&str>) -> Result<MagickWand
         mw.set_format("")?;
     }
 
-    if format == Some("RSVG") {
+    if rsvg {
         // Keep the format name which the `SVG` reader reports.
         mw.set_image_format("SVG")?;
     }
 
     Ok(mw)
+}
+
+// Read SVG data with librsvg when it is available, because for data the `SVG` reader first runs Inkscape (if installed) on a file which does not hold the data, which always fails.
+// It returns whether librsvg is used, in which case the image format has to be set to `SVG` after reading.
+pub(crate) fn set_svg_format(mw: &mut MagickWand) -> Result<bool, MagickError> {
+    if mw.set_format("RSVG").is_ok() {
+        return Ok(true);
+    }
+
+    mw.set_format("SVG")?;
+
+    Ok(false)
 }
 
 fn icon_format(data: &[u8]) -> Option<&'static str> {
@@ -187,10 +208,59 @@ fn icon_format(data: &[u8]) -> Option<&'static str> {
     }
 }
 
-// The same check which ImageMagick uses to detect SVG data.
+// Read the root element after the XML preamble without changing the input data.
 fn is_svg_data(data: &[u8]) -> bool {
-    data.get(1..4).is_some_and(|value| value.eq_ignore_ascii_case(b"svg"))
-        || data.get(1..5).is_some_and(|value| value.eq_ignore_ascii_case(b"?xml"))
+    let mut data = data.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(data);
+
+    loop {
+        data = data.trim_ascii_start();
+
+        let closing = if data.starts_with(b"<!--") {
+            Some(b"-->".as_slice())
+        } else if data.starts_with(b"<?") {
+            Some(b"?>".as_slice())
+        } else {
+            None
+        };
+
+        if let Some(closing) = closing {
+            let Some(end) = find_bytes(data, closing) else {
+                return false;
+            };
+            data = &data[end + closing.len()..];
+        } else if data.starts_with(b"<!DOCTYPE") {
+            // A document type can contain quoted text and an internal subset with its own tags.
+            let mut quote = None;
+            let mut depth = 0usize;
+            let end = data.iter().position(|&byte| {
+                if let Some(current) = quote {
+                    if byte == current {
+                        quote = None;
+                    }
+                } else {
+                    match byte {
+                        b'\'' | b'"' => quote = Some(byte),
+                        b'[' => depth += 1,
+                        b']' => depth = depth.saturating_sub(1),
+                        b'>' if depth == 0 => return true,
+                        _ => (),
+                    }
+                }
+                false
+            });
+
+            let Some(end) = end else {
+                return false;
+            };
+            data = &data[end + 1..];
+        } else {
+            return data.starts_with(b"<")
+                && data.get(1..4).is_some_and(|value| value.eq_ignore_ascii_case(b"svg"))
+                && data
+                    .get(4)
+                    .is_some_and(|byte| byte.is_ascii_whitespace() || matches!(byte, b'/' | b'>'));
+        }
+    }
 }
 
 fn icon_path_format(path: &str) -> Option<&'static str> {

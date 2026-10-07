@@ -61,6 +61,14 @@ Multi-frame output to `ImageResource::Data` is encoded in a temporary directory 
 
 `JPGConfig::quality` can be `None`, which keeps the quality of the input image instead of asking for one. **ImageMagick** estimates that quality from the quantization tables of an input JPEG image, so re-encoding a JPEG image does not compress it a second time at a lower quality. It falls back to the default of **ImageMagick** when the input image is not a JPEG image.
 
+## Color profiles
+
+`strip_metadata` defaults to `true`. Images with an embedded ICC profile, such as Display P3 or Adobe RGB photos, are converted to sRGB before the profile is removed, so viewers which assume sRGB still show their colors correctly. Each frame is converted before compositing, resizing or filling its transparent background, and colors outside the sRGB gamut are mapped by the ICC conversion of **ImageMagick**. A profile which already matches sRGB is not applied again, and images without an ICC profile are not converted.
+
+With `strip_metadata = false`, output formats which support ICC profiles keep the original profile and pixels. Background colors follow the color rules of **ImageMagick**, where RGB values and named colors are sRGB, so they are converted to the image profile before compositing. ICO, PGM and GrayRaw outputs cannot keep a profile, so they always convert to sRGB first, and the gray outputs then use the usual grayscale conversion.
+
+ICC conversion requires **ImageMagick** built with the `lcms` delegate. A required conversion returns an error if it cannot run, rather than removing the profile and leaving the colors unchanged. A broken profile, or one made for other color channels, is ignored like browsers do, so the pixels keep their values.
+
 ## Orientation
 
 Many cameras store a photo in the orientation of their sensor and put the real orientation into the metadata. `respect_orientation` rotates the image into that orientation and resets the metadata, so a viewer would not rotate it a second time. It defaults to `true`.
@@ -133,6 +141,7 @@ pub mod asynchronous;
 
 mod color;
 mod color_name;
+mod color_profile;
 mod crop;
 mod format_bmp;
 mod format_gif;

@@ -58,6 +58,31 @@ fn to_jpg_file2file() {
 }
 
 #[test]
+fn to_jpg_respects_chroma_quartered_config() {
+    start_call_once();
+    let mut color = PixelWand::new();
+    color.set_color("red").unwrap();
+    let mut image = MagickWand::new();
+    image.new_image(16, 16, &color).unwrap();
+    image.set_image_format("PNG").unwrap();
+    image.set_sampling_factors(&[1.0, 1.0, 1.0]).unwrap();
+    let input = ImageResource::MagickWand(image);
+
+    for (force, expected) in [(true, "2x2,1x1,1x1"), (false, "1x1,1x1,1x1")] {
+        let mut config = JPGConfig::new();
+        config.force_to_chroma_quartered = force;
+        config.quality = Some(100);
+        let mut output = ImageResource::Data(Vec::new());
+
+        to_jpg(&mut output, &input, &config).unwrap();
+
+        let mut image = None;
+        identify_read(&mut image, &output).unwrap();
+        assert_eq!(expected, image.unwrap().get_image_property("jpeg:sampling-factor").unwrap());
+    }
+}
+
+#[test]
 fn to_jpg_data2data_keeps_the_quality() {
     let input = ImageResource::from_path(INPUT_IMAGE_PATH);
 

@@ -7,6 +7,7 @@ use crate::Crop;
 /// The general config of an image format.
 pub trait ImageConfig: Debug {
     /// Whether to remove the metadata stored in the input image.
+    /// Images with an ICC profile are converted to sRGB before the profile is removed.
     fn strip_metadata(&self) -> bool;
     /// The maximum width of the output image, keeping its aspect ratio.
     /// `0` means no width limit; if both limits are `0`, the image is not resized.

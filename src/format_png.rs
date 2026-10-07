@@ -9,6 +9,7 @@ use crate::{
 /// The output config of a PNG image.
 pub struct PNGConfig {
     /// Remove the metadata stored in the input image.
+    /// Images with an ICC profile are converted to sRGB before the profile is removed.
     pub strip_metadata:      bool,
     /// The maximum width of the output image, keeping its aspect ratio.
     /// `0` means no width limit; if both limits are `0`, the image is not resized.

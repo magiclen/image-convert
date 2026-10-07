@@ -27,23 +27,28 @@ jobs:
       - name: Install ImageMagick (Linux)
         run: |
           sudo apt update
-          sudo apt install librsvg2-dev libwebp-dev ffmpeg
+          sudo apt install librsvg2-dev libwebp-dev libheif-dev libheif-plugin-libde265 liblcms2-dev ffmpeg
           wget https://download.imagemagick.org/archive/ImageMagick.tar.gz
           tar xf ImageMagick.tar.gz
           cd ImageMagick-*
           ./configure --enable-hdri --with-rsvg
-          make -j$(nproc)
+          make -j"$(nproc)"
           sudo make install
           sudo ldconfig
         if: runner.os == 'Linux'
-      # `imagemagick-full` is used because the `imagemagick` formula has no rsvg delegate.
-      # Homebrew links the delegates itself, which building from source on macOS fails to do.
+      # imagemagick-full provides the rsvg, heic, and lcms delegates.
+      # It is keg-only, so its bin and pkg-config paths are exported for the later steps.
       - name: Install ImageMagick (macOS)
         run: |
           brew update
           brew list pkgconf || brew install pkgconf
           brew uninstall --ignore-dependencies imagemagick || true
           brew install imagemagick-full ffmpeg
+          image_magick_prefix="$(brew --prefix imagemagick-full)"
+          export PATH="$image_magick_prefix/bin:$PATH"
+          export PKG_CONFIG_PATH="$image_magick_prefix/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+          echo "$image_magick_prefix/bin" >> "$GITHUB_PATH"
+          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
           magick -version
           pkg-config --modversion MagickWand
         if: runner.os == 'macOS'
@@ -77,18 +82,23 @@ jobs:
           tar xf ImageMagick.tar.gz
           cd ImageMagick-*
           ./configure --enable-hdri --with-rsvg
-          make -j$(nproc)
+          make -j"$(nproc)"
           sudo make install
           sudo ldconfig
         if: runner.os == 'Linux'
-      # `imagemagick-full` is used because the `imagemagick` formula has no rsvg delegate.
-      # Homebrew links the delegates itself, which building from source on macOS fails to do.
+      # imagemagick-full provides the rsvg, heic, and lcms delegates.
+      # It is keg-only, so its bin and pkg-config paths are exported for the later steps.
       - name: Install ImageMagick (macOS)
         run: |
           brew update
           brew list pkgconf || brew install pkgconf
           brew uninstall --ignore-dependencies imagemagick || true
           brew install imagemagick-full
+          image_magick_prefix="$(brew --prefix imagemagick-full)"
+          export PATH="$image_magick_prefix/bin:$PATH"
+          export PKG_CONFIG_PATH="$image_magick_prefix/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+          echo "$image_magick_prefix/bin" >> "$GITHUB_PATH"
+          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
           magick -version
           pkg-config --modversion MagickWand
         if: runner.os == 'macOS'

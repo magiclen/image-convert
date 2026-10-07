@@ -1,8 +1,8 @@
 use magick_rust::{ColorspaceType, MagickError};
 
 use crate::{
-    Color, Crop, ImageConfig, ImageResource, InterlaceType, check_output, fetch_magic_wand,
-    functions::{handle_background_color, resize_and_sharpen},
+    Color, Crop, ImageConfig, ImageResource, InterlaceType, check_output,
+    functions::{fetch_magic_wand_for_format, handle_background_color, resize_and_sharpen},
     write_output,
 };
 
@@ -12,6 +12,7 @@ use crate::{
 /// The image is only shrunk, never enlarged, and it is not sharpened.
 pub struct GrayRawConfig {
     /// Remove the metadata stored in the input image.
+    /// ICC profiles are applied before converting to gray, even when this is `false`.
     pub strip_metadata:      bool,
     /// The maximum width of the output image, keeping its aspect ratio.
     /// `0` means no width limit; if both limits are `0`, the image is not resized.
@@ -106,7 +107,7 @@ pub fn to_gray_raw(
 ) -> Result<(), MagickError> {
     check_output(output, &["raw"])?;
 
-    let (mut mw, vector) = fetch_magic_wand(input, config)?;
+    let (mut mw, vector) = fetch_magic_wand_for_format(input, config, "GRAY")?;
 
     if let Some(background_color) = config.background_color.as_ref() {
         handle_background_color(&mut mw, background_color)?;

@@ -48,6 +48,7 @@ impl ICOConfigInner {
 /// The output config of an ICO image.
 pub struct ICOConfig {
     /// Remove the metadata stored in the input image.
+    /// ICO always converts images with an ICC profile to sRGB because its encoder only receives pixels.
     pub strip_metadata:      bool,
     /// The nonempty size limits of output images, made up of a width and a height; the aspect ratio is kept.
     /// `0` means no limit for that dimension, and `(0, 0)` keeps the original size.
@@ -150,7 +151,7 @@ pub fn to_ico(
     }
 
     let (mut mw, vector) =
-        fetch_magic_wand_from_read(mw, input, &inner_configs[first_index], None)?;
+        fetch_magic_wand_from_read(mw, input, &inner_configs[first_index], Some("ICO"))?;
 
     match source {
         Some(source) if vector => {
@@ -161,7 +162,7 @@ pub fn to_ico(
                 let rendered = if index == first_index { first.take() } else { None };
                 let (mut mw, vector) = match rendered {
                     Some(mw) => (mw, true),
-                    None => fetch_magic_wand_from_read(source.clone(), input, config, None)?,
+                    None => fetch_magic_wand_from_read(source.clone(), input, config, Some("ICO"))?,
                 };
 
                 if !vector {

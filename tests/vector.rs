@@ -163,6 +163,33 @@ fn to_png_file2file_no_view_box() {
 }
 
 #[test]
+fn svg_data_accepts_xml_preambles() {
+    let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" width="2" height="1" viewBox="0 0 2 1"><rect width="2" height="1" fill="red"/></svg>"#;
+    for prefix in [
+        "\u{FEFF}",
+        " \n\t",
+        "<!-- <svg width='999'> -->\n",
+        "\u{FEFF}<?xml version='1.0'?>\n<!-- image -->\n<!DOCTYPE svg [<!ENTITY name 'test > \
+         value'>]>\n",
+    ] {
+        let input = ImageResource::Data([prefix.as_bytes(), svg].concat());
+        let id = identify_ping(&input).unwrap();
+        assert_eq!(2, id.resolution.width);
+        assert_eq!(1, id.resolution.height);
+        let mut output = ImageResource::Data(Vec::new());
+        to_png(&mut output, &input, &PNGConfig::new()).unwrap();
+        let mut mw = None;
+        let id = identify_read(&mut mw, &output).unwrap();
+        assert_eq!(2, id.resolution.width);
+        assert_eq!(1, id.resolution.height);
+        assert_eq!(
+            [255, 0, 0, 255],
+            mw.unwrap().export_image_pixels(0, 0, 1, 1, "RGBA").unwrap().as_slice()
+        );
+    }
+}
+
+#[test]
 fn to_png_keeps_the_aspect_ratio_with_css_width() {
     let input = ImageResource::Data(br#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="50" style="width:100px" viewBox="0 0 100 50"><rect width="100" height="50" fill="red"/></svg>"#.to_vec());
     let mut config = PNGConfig::new();

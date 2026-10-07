@@ -11,6 +11,7 @@ pub enum ImageResource {
     /// A path of an image file.
     Path(String),
     /// The data of an image.
+    /// SVG data can start with a UTF-8 BOM, whitespace, comments, an XML declaration or a document type declaration.
     Data(Vec<u8>),
     /// A `MagickWand` instance which holds an image.
     MagickWand(MagickWand),
