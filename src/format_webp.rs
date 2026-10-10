@@ -1,9 +1,12 @@
-use magick_rust::{MagickError, ResolutionType};
+use magick_rust::MagickError;
 
 use crate::{
     Crop, ImageResource, InterlaceType, check_output,
-    functions::{fetch_magic_wand_for_format, for_each_frame, resize_and_sharpen},
+    functions::{
+        fetch_magic_wand_for_format, for_each_frame, require_webp_mux, resize_and_sharpen, set_ppi,
+    },
     image_config::impl_image_config,
+    webp_density::prepare_exif_density,
     write_output,
 };
 
@@ -31,7 +34,9 @@ pub struct WEBPConfig {
     pub respect_orientation: bool,
     /// From 1 to 100, the higher the better. `0` is treated as `1`.
     pub quality:             u8,
-    /// Pixels per inch.
+    /// Pixels per inch, stored in EXIF even when `strip_metadata` is `true`.
+    /// **ImageMagick** rounds the EXIF resolution to whole numbers when encoding.
+    /// Writing an explicit value requires **ImageMagick** with the `webpmux` delegate.
     pub ppi:                 Option<(f64, f64)>,
 }
 
@@ -88,6 +93,10 @@ pub fn to_webp(
 ) -> Result<(), MagickError> {
     check_output(output, &["webp"])?;
 
+    if config.ppi.is_some() && !matches!(output, ImageResource::MagickWand(_)) {
+        require_webp_mux("WebP PPI output")?;
+    }
+
     let (mut mw, vector) = fetch_magic_wand_for_format(input, config, "WEBP")?;
 
     if !vector {
@@ -106,9 +115,10 @@ pub fn to_webp(
 
         frame.set_image_format("WEBP")?;
 
-        if let Some((x, y)) = config.ppi {
-            frame.set_image_resolution(x.max(0f64), y.max(0f64))?;
-            frame.set_image_units(ResolutionType::PixelsPerInch)?;
+        if let Some(ppi) = config.ppi {
+            // WebP has no density field; its encoder only writes density through an EXIF profile.
+            prepare_exif_density(frame)?;
+            set_ppi(frame, ppi)?;
         }
 
         Ok(())

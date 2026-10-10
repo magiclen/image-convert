@@ -1,9 +1,10 @@
-use magick_rust::{CompressionType, MagickError, ResolutionType};
+use magick_rust::{CompressionType, MagickError};
 
 use crate::{
     Color, Crop, ImageResource, InterlaceType, check_output,
     functions::{
         fetch_magic_wand_for_format, for_each_frame, handle_background_color, resize_and_sharpen,
+        set_ppi,
     },
     image_config::impl_image_config,
     write_output,
@@ -34,7 +35,7 @@ pub struct TIFFConfig {
     pub respect_orientation: bool,
     /// The color is used to fill up the alpha background.
     pub background_color:    Option<Color>,
-    /// Pixels per inch.
+    /// Pixels per inch for every page. An explicit value is written even when `strip_metadata` is `true`.
     pub ppi:                 Option<(f64, f64)>,
 }
 
@@ -107,9 +108,8 @@ pub fn to_tiff(
 
         frame.set_image_format("TIFF")?;
 
-        if let Some((x, y)) = config.ppi {
-            frame.set_image_resolution(x.max(0f64), y.max(0f64))?;
-            frame.set_image_units(ResolutionType::PixelsPerInch)?;
+        if let Some(ppi) = config.ppi {
+            set_ppi(frame, ppi)?;
         }
 
         Ok(())

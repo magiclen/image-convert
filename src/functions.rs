@@ -2,6 +2,7 @@ use std::{cmp::Reverse, fmt::Write, fs, ops::Range, path::Path, str};
 
 use magick_rust::{
     AlphaChannelOption, FilterType, MagickError, MagickWand, OrientationType, PixelWand,
+    ResolutionType, bindings::ExceptionType,
 };
 
 use crate::{
@@ -117,6 +118,22 @@ pub(crate) fn for_each_frame(
     mw.reset_iterator();
 
     Ok(())
+}
+
+// Read the profile of the current frame in a profile format such as `ICC` or `EXIF`. It returns `None` if the frame has no such profile.
+pub(crate) fn read_image_profile(
+    mw: &MagickWand,
+    format: &str,
+) -> Result<Option<Vec<u8>>, MagickError> {
+    // The blob writer changes the format and iterator, so only the current frame is cloned.
+    let image = MagickWand::new_from_image(&mw.get_image()?)?;
+
+    match image.write_image_blob(format) {
+        Ok(profile) => Ok(Some(profile)),
+        // The profile writers use CoderError only when the image has no such profile.
+        Err(_) if image.get_exception_type() == ExceptionType::CoderError => Ok(None),
+        Err(error) => Err(error),
+    }
 }
 
 // Make the frames of the image ready to be edited one by one.
@@ -675,6 +692,19 @@ pub(crate) fn handle_background_color(
     })
 }
 
+// PNG stores the density as 32-bit pixels per meter, which is a bit more than this value in pixels per inch.
+const MAX_PPI: f64 = 100_000_000f64;
+
+// Set the resolution of the current frame in pixels per inch.
+// ImageMagick converts some densities to integers without checking the range, which is undefined behavior for infinity, so the values are limited from `0` to `MAX_PPI`.
+pub(crate) fn set_ppi(mw: &mut MagickWand, (x, y): (f64, f64)) -> Result<(), MagickError> {
+    // `clamp` keeps NaN, so NaN is turned into `0` first.
+    let limit = |value: f64| if value.is_nan() { 0f64 } else { value.clamp(0f64, MAX_PPI) };
+
+    mw.set_image_resolution(limit(x), limit(y))?;
+    mw.set_image_units(ResolutionType::PixelsPerInch)
+}
+
 // Check the output resource before reading the input image, so that a wrong output fails without doing the conversion. `extensions` are the file extension names allowed by the output format.
 pub(crate) fn check_output(output: &ImageResource, extensions: &[&str]) -> Result<(), MagickError> {
     if let ImageResource::Path(p) = output {
@@ -699,7 +729,7 @@ pub(crate) fn write_output(
     let multi_frame = mw.get_number_images() > 1;
 
     if multi_frame && format == "WEBP" && !matches!(output, ImageResource::MagickWand(_)) {
-        require_webp_animation()?;
+        require_webp_mux("Animated WebP output")?;
     }
 
     match output {
@@ -759,17 +789,20 @@ fn has_extension(path: &str, extensions: &[&str]) -> bool {
     }
 }
 
-fn require_webp_animation() -> Result<(), MagickError> {
+pub(crate) fn require_webp_mux(operation: &str) -> Result<(), MagickError> {
     use magick_rust::bindings::{
         AcquireExceptionInfo, DestroyExceptionInfo, GetMagickAdjoin, GetMagickInfo,
         MagickBooleanType,
     };
 
+    // It can run before the input image is read.
+    start_call_once();
+
     // SAFETY: ImageMagick is initialized, the name is a C string, and the exception is released after the borrowed coder is checked.
     let supported = unsafe {
         let exception = AcquireExceptionInfo();
         if exception.is_null() {
-            return Err("Cannot check the WebP animation encoder.".into());
+            return Err("Cannot check the WebP encoder.".into());
         }
         let coder = GetMagickInfo(c"WEBP".as_ptr(), exception);
         let supported = !coder.is_null() && GetMagickAdjoin(coder) == MagickBooleanType::MagickTrue;
@@ -780,6 +813,6 @@ fn require_webp_animation() -> Result<(), MagickError> {
     if supported {
         Ok(())
     } else {
-        Err("Animated WebP output requires ImageMagick with the webpmux delegate.".into())
+        Err(MagickError(format!("{operation} requires ImageMagick with the webpmux delegate.")))
     }
 }

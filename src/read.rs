@@ -8,7 +8,8 @@ use magick_rust::{AlphaChannelOption, CompositeOperator, DisposeType, MagickErro
 
 use crate::{
     ImageResource,
-    functions::{find_bytes, set_none_background},
+    functions::{find_bytes, for_each_frame, set_none_background},
+    webp_density::{read_webp_exif, restore_exif_properties},
 };
 
 pub(crate) fn read_image_wand(
@@ -50,6 +51,27 @@ pub(crate) fn read_image_wand(
     };
 
     mw.reset_iterator();
+
+    // WebP ping and animated decoding omit the container's EXIF profile.
+    if mw.get_image_format()? == "WEBP" {
+        let profile = match input {
+            // Only inspect regular files, since reading a stream again could block or consume input.
+            ImageResource::Path(_) => mw
+                .get_image_filename()
+                .ok()
+                .filter(|path| std::fs::metadata(path).is_ok_and(|metadata| metadata.is_file()))
+                .and_then(|path| File::open(path).ok())
+                .and_then(|file| read_webp_exif(BufReader::new(file))),
+            ImageResource::Data(data) => read_webp_exif(Cursor::new(data)),
+            ImageResource::MagickWand(_) => None,
+        };
+        if let Some(profile) = profile {
+            for_each_frame(&mut mw, |frame| {
+                frame.profile_image("exif", profile.as_slice())?;
+                restore_exif_properties(frame)
+            })?;
+        }
+    }
 
     // PNG-compressed icon frames lose their container format when ImageMagick reads them.
     let icon = icon

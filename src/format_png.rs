@@ -1,8 +1,10 @@
-use magick_rust::{MagickError, ResolutionType};
+use magick_rust::MagickError;
 
 use crate::{
     Crop, ImageResource, InterlaceType, check_output, fetch_magic_wand,
-    functions::resize_and_sharpen, image_config::impl_image_config, write_output,
+    functions::{resize_and_sharpen, set_ppi},
+    image_config::impl_image_config,
+    write_output,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,7 +29,8 @@ pub struct PNGConfig {
     pub sharpen:             f64,
     /// Apply orientation from image metadata if available. It is applied anyway when `strip_metadata` is `true`, because removing the metadata would otherwise throw the orientation away.
     pub respect_orientation: bool,
-    /// Pixels per inch.
+    /// Pixels per inch. An explicit value is written even when `strip_metadata` is `true`.
+    /// With `None`, stripping metadata also removes the source PNG density.
     pub ppi:                 Option<(f64, f64)>,
 }
 
@@ -95,9 +98,11 @@ pub fn to_png(
 
     mw.set_image_format("PNG")?;
 
-    if let Some((x, y)) = config.ppi {
-        mw.set_image_resolution(x.max(0f64), y.max(0f64))?;
-        mw.set_image_units(ResolutionType::PixelsPerInch)?;
+    if let Some(ppi) = config.ppi {
+        set_ppi(&mut mw, ppi)?;
+
+        // Stripping adds pHYs to the PNG encoder's excluded chunks, even after setting a new resolution.
+        mw.set_option("png:include-chunk", "pHYs")?;
     }
 
     write_output(output, mw, "PNG")

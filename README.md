@@ -63,6 +63,16 @@ Multi-frame output to `ImageResource::Data` is encoded in a temporary directory 
 
 `JPGConfig::quality` can be `None`, which keeps the quality of the input image instead of asking for one. **ImageMagick** estimates that quality from the quantization tables of an input JPEG image, so re-encoding a JPEG image does not compress it a second time at a lower quality. It falls back to the default of **ImageMagick** when the input image is not a JPEG image.
 
+## Pixel density
+
+`BMPConfig`, `JPGConfig`, `PNGConfig`, `TIFFConfig` and `WEBPConfig` accept `ppi = Some((horizontal, vertical))` to set the output density, even when `strip_metadata` is `true`. TIFF applies it to every page. Formats may round the stored values: PNG and BMP use integer pixels per meter, while JPEG and the EXIF writer of **ImageMagick** use whole-number resolutions.
+
+Negative values and NaN are treated as `0`, and values above `100000000` are limited to it, because **ImageMagick** converts some densities to integers without checking their range. The density field of JPEG only stores values below `32767`, so larger values are not written to it.
+
+WebP stores an explicit PPI in EXIF and requires **ImageMagick** built with `webpmux` to write it. With metadata stripping enabled, only the requested density tags are added; with stripping disabled, the other EXIF fields are kept. `identify_ping` reads WebP EXIF without decoding pixels, and full reads restore its density on every animation frame.
+
+`ppi = None` leaves the density handling to the output format. Stripping removes PNG density and WebP EXIF, while BMP, JPEG and TIFF can retain density in their image headers.
+
 ## Color profiles
 
 `strip_metadata` defaults to `true`. Images with an embedded ICC profile, such as Display P3 or Adobe RGB photos, are converted to sRGB before the profile is removed, so viewers which assume sRGB still show their colors correctly. Each frame is converted before compositing, resizing or filling its transparent background, and colors outside the sRGB gamut are mapped by the ICC conversion of **ImageMagick**. A profile which already matches sRGB is not applied again, and images without an ICC profile are not converted.

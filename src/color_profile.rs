@@ -2,20 +2,10 @@ use magick_rust::{
     ColorspaceType, MagickError, MagickWand, PixelWand, RenderingIntent, bindings::ExceptionType,
 };
 
+use crate::functions::read_image_profile;
+
 // This sRGB profile was made with Little CMS 2 and is free to use.
 const SRGB_PROFILE: &[u8] = include_bytes!("srgb.icc");
-
-fn read_icc_profile(mw: &MagickWand) -> Result<Option<Vec<u8>>, MagickError> {
-    // The blob writer changes the format and iterator, so only the current frame is cloned.
-    let image = MagickWand::new_from_image(&mw.get_image()?)?;
-
-    match image.write_image_blob("ICC") {
-        Ok(profile) => Ok(Some(profile)),
-        // The ICC writer uses CoderError only when the image has no color profile.
-        Err(_) if image.get_exception_type() == ExceptionType::CoderError => Ok(None),
-        Err(error) => Err(error),
-    }
-}
 
 // Browsers ignore a broken profile, or one made for other color channels, so the pixels keep their values here too.
 fn is_usable_profile(mw: &MagickWand, profile: &[u8]) -> bool {
@@ -149,7 +139,7 @@ pub(crate) struct SrgbCheck {
 impl SrgbCheck {
     // Return the profile of the current frame if its colors have to be converted.
     fn profile_to_convert(&mut self, mw: &MagickWand) -> Result<Option<Vec<u8>>, MagickError> {
-        let Some(profile) = read_icc_profile(mw)? else {
+        let Some(profile) = read_image_profile(mw, "ICC")? else {
             return Ok(None);
         };
 
