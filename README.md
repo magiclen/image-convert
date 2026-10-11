@@ -5,6 +5,10 @@ Image Convert
 
 This crate is a high level library using **MagickWand** (ImageMagick) for image identification, conversion, interlacing and high quality resizing.
 
+## Requirements
+
+This crate needs **ImageMagick** 7.1.1-31 or later. It calls `GetMaxProfileSize`, which was added in that version, to skip WebP profiles over the profile size limit of the security policy before reading them. `magick_rust` generates its bindings from the installed **ImageMagick** headers, so building with an older version fails. Some features need a newer version, such as the frame limit of `identify_ping_frames`, which needs 7.1.2-28 or later.
+
 ## Examples
 
 Identify an image.
@@ -57,6 +61,8 @@ APNG decoding requires the **ImageMagick** APNG coder and an external `ffmpeg` d
 
 Writing animated WebP requires **ImageMagick** built with `webpmux`; otherwise the conversion returns an error instead of writing a still image.
 
+When pinging, **ImageMagick** still creates every frame without decoding its pixels, so a small file with many tiny frames can use a lot of memory before its frame count is known. `identify_ping_frames` limits the returned frame count for path and data inputs on **ImageMagick** 7.1.2-28 or later, so pass one more than the largest frame count you accept to find images with too many frames. `0` means no limit, older versions read every frame, and a `MagickWand` input is not limited because its frames have been read already. A path with a frame range or geometry suffix returns an error when the limit is not `0`, because the suffix would override it. The readers of formats such as GIF, TIFF, ICO and HEIC stop early, while the WebP and JPEG XL readers still read every frame before the extra ones are dropped.
+
 Multi-frame output to `ImageResource::Data` is encoded in a temporary directory and then read into memory to avoid an unchecked pointer in `magick_rust` when blob encoding fails. This requires writable temporary storage and adds file I/O; the directory is cleaned up when the operation ends. If encoding or reading fails, the original output data is kept.
 
 ## Quality
@@ -69,13 +75,15 @@ Multi-frame output to `ImageResource::Data` is encoded in a temporary directory 
 
 Negative values and NaN are treated as `0`, and values above `100000000` are limited to it, because **ImageMagick** converts some densities to integers without checking their range. The density field of JPEG only stores values below `32767`, so larger values are not written to it.
 
-WebP stores an explicit PPI in EXIF and requires **ImageMagick** built with `webpmux` to write it. With metadata stripping enabled, only the requested density tags are added; with stripping disabled, the other EXIF fields are kept. `identify_ping` reads WebP EXIF without decoding pixels, and full reads restore its density on every animation frame.
+WebP stores an explicit PPI in EXIF and requires **ImageMagick** built with `webpmux` to write it. With metadata stripping enabled, only the requested density tags are added; with stripping disabled, the other EXIF fields are kept. `identify_ping` reads WebP EXIF without decoding pixels, and full reads restore its density and orientation on every animation frame, while the EXIF profile itself stays on the first frame.
 
 `ppi = None` leaves the density handling to the output format. Stripping removes PNG density and WebP EXIF, while BMP, JPEG and TIFF can retain density in their image headers.
 
 ## Color profiles
 
 `strip_metadata` defaults to `true`. Images with an embedded ICC profile, such as Display P3 or Adobe RGB photos, are converted to sRGB before the profile is removed, so viewers which assume sRGB still show their colors correctly. Each frame is converted before compositing, resizing or filling its transparent background, and colors outside the sRGB gamut are mapped by the ICC conversion of **ImageMagick**. A profile which already matches sRGB is not applied again, and images without an ICC profile are not converted.
+
+An animation can store one color profile for all of its frames, while **ImageMagick** gives it only to the frame which comes with it, such as the first frame of a GIF image. When converting to sRGB, a frame of an animation without its own profile uses the profile of the frame before it. The color profile of an animated WebP image, which the decoder of **ImageMagick** drops, is restored on its first frame during reading. Later compositing or conversion can copy profiles to other frames. With `strip_metadata = false`, converting an animation to TIFF attaches a usable shared color profile to each page without its own profile, so its colors stay correctly tagged without changing the pixels. TIFF input pages and icon images do not inherit profiles from each other.
 
 With `strip_metadata = false`, output formats which support ICC profiles keep the original profile and pixels. Background colors follow the color rules of **ImageMagick**, where RGB values and named colors are sRGB, so they are converted to the image profile before compositing. ICO, PGM and GrayRaw outputs cannot keep a profile, so they always convert to sRGB first, and the gray outputs then use the usual grayscale conversion.
 

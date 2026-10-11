@@ -1,4 +1,5 @@
 use std::{
+    ffi::CString,
     fs::File,
     io::{self, BufReader, Cursor, Read, Seek},
     path::Path,
@@ -8,22 +9,29 @@ use magick_rust::{AlphaChannelOption, CompositeOperator, DisposeType, MagickErro
 
 use crate::{
     ImageResource,
-    functions::{find_bytes, for_each_frame, set_none_background},
-    webp_density::{read_webp_exif, restore_exif_properties},
+    functions::{find_bytes, set_none_background},
+    webp_density::{WebpProfiles, read_webp_profiles, restore_webp_profiles},
 };
 
+// `max_frames` asks ImageMagick to read at most that many frames, and `0` means no limit.
 pub(crate) fn read_image_wand(
     input: &ImageResource,
     ping: bool,
     keep_frames: bool,
+    max_frames: usize,
 ) -> Result<MagickWand, MagickError> {
     let mut icon = None;
     let mut mw = match input {
         ImageResource::Path(p) => {
-            let mw = MagickWand::new();
-            set_none_background!(mw);
-
             let path = png_path(p);
+            if max_frames > 0 {
+                check_frame_limit_path(path)?;
+            }
+
+            let mut mw = MagickWand::new();
+            set_none_background!(mw);
+            set_max_frames(&mut mw, max_frames)?;
+
             if ping {
                 mw.ping_image(path)?;
             } else {
@@ -37,14 +45,14 @@ pub(crate) fn read_image_wand(
             // ImageMagick cannot detect an icon from its data, nor SVG data which starts with a comment or a BOM, so these formats are given.
             let format = icon.or_else(|| find_svg_attributes_start(b).map(|_| "SVG"));
 
-            match format.map(|format| read_blob(b, ping, Some(format))) {
+            match format.map(|format| read_blob(b, ping, Some(format), max_frames)) {
                 Some(Ok(mw)) => mw,
                 // Data which only looks like an icon or an SVG image is read again without the format, but the first error is more useful if that also fails.
                 Some(Err(error)) => {
                     icon = None;
-                    read_blob(b, ping, None).map_err(|_| error)?
+                    read_blob(b, ping, None, max_frames).map_err(|_| error)?
                 },
-                None => read_blob(b, ping, None)?,
+                None => read_blob(b, ping, None, max_frames)?,
             }
         },
         ImageResource::MagickWand(mw) => mw.clone(),
@@ -52,25 +60,25 @@ pub(crate) fn read_image_wand(
 
     mw.reset_iterator();
 
-    // WebP ping and animated decoding omit the container's EXIF profile.
+    // WebP ping and animated decoding omit the container's profiles.
     if mw.get_image_format()? == "WEBP" {
-        let profile = match input {
+        // A ping does not use the ICC profile.
+        let icc = !ping;
+        let profiles = match input {
             // Only inspect regular files, since reading a stream again could block or consume input.
             ImageResource::Path(_) => mw
                 .get_image_filename()
                 .ok()
                 .filter(|path| std::fs::metadata(path).is_ok_and(|metadata| metadata.is_file()))
                 .and_then(|path| File::open(path).ok())
-                .and_then(|file| read_webp_exif(BufReader::new(file))),
-            ImageResource::Data(data) => read_webp_exif(Cursor::new(data)),
-            ImageResource::MagickWand(_) => None,
+                .map(|file| read_webp_profiles(BufReader::new(file), icc))
+                .unwrap_or_default(),
+            ImageResource::Data(data) => read_webp_profiles(Cursor::new(data), icc),
+            ImageResource::MagickWand(_) => WebpProfiles::default(),
         };
-        if let Some(profile) = profile {
-            for_each_frame(&mut mw, |frame| {
-                frame.profile_image("exif", profile.as_slice())?;
-                restore_exif_properties(frame)
-            })?;
-        }
+
+        // A ping only reports the first frame.
+        restore_webp_profiles(&mut mw, profiles, !ping)?;
     }
 
     // PNG-compressed icon frames lose their container format when ImageMagick reads them.
@@ -173,9 +181,15 @@ pub(crate) fn read_image_wand(
 pub(crate) const ICON_ARTIFACT: &str = "image-convert:icon";
 
 // Read the data in the given format, or in the format which ImageMagick detects.
-fn read_blob(data: &[u8], ping: bool, format: Option<&str>) -> Result<MagickWand, MagickError> {
+fn read_blob(
+    data: &[u8],
+    ping: bool,
+    format: Option<&str>,
+    max_frames: usize,
+) -> Result<MagickWand, MagickError> {
     let mut mw = MagickWand::new();
     set_none_background!(mw);
+    set_max_frames(&mut mw, max_frames)?;
 
     let rsvg = match format {
         Some("SVG") => set_svg_format(&mut mw)?,
@@ -204,6 +218,37 @@ fn read_blob(data: &[u8], ping: bool, format: Option<&str>) -> Result<MagickWand
     }
 
     Ok(mw)
+}
+
+// A path selection takes priority over `image:frames`, including a geometry suffix which reads every frame.
+fn check_frame_limit_path(path: &str) -> Result<(), MagickError> {
+    use magick_rust::bindings::{GetPathComponent, MagickPathExtent, PathType};
+
+    if !path.ends_with(']') {
+        return Ok(());
+    }
+
+    let path = CString::new(path).map_err(|_| "path string contains null byte")?;
+    let mut selection = [0; MagickPathExtent as usize];
+
+    // SAFETY: ImageMagick is initialized, the path is a C string, and the output buffer has the size required by GetPathComponent.
+    unsafe { GetPathComponent(path.as_ptr(), PathType::Subimage, selection.as_mut_ptr()) };
+
+    if selection[0] != 0 {
+        return Err("A frame limit cannot be combined with a path selection.".into());
+    }
+
+    Ok(())
+}
+
+// Ask the readers which support a frame range to stop after `max_frames` frames. `0` means no limit.
+fn set_max_frames(mw: &mut MagickWand, max_frames: usize) -> Result<(), MagickError> {
+    if max_frames > 0 {
+        // ImageMagick 7.1.2-28 added this define, and older versions ignore it.
+        mw.set_option("image:frames", &format!("0-{}", max_frames - 1))?;
+    }
+
+    Ok(())
 }
 
 // Read SVG data with librsvg when it is available, because for data the `SVG` reader first runs Inkscape (if installed) on a file which does not hold the data, which always fails.

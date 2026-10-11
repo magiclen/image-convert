@@ -118,7 +118,7 @@ pub fn to_ico(
     let mut icon_dir = ico::IconDir::new(ico::ResourceType::Icon);
 
     start_call_once();
-    let mw = read_image_wand(input, false, false)?;
+    let mw = read_image_wand(input, false, false, 0)?;
     let mut first_index = 0;
     let mut source = None;
 

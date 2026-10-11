@@ -7,7 +7,7 @@ use magick_rust::{
 
 use crate::{
     Color, Crop, ImageConfig, ImageResource,
-    color_profile::{SrgbCheck, convert_background_color, convert_to_srgb},
+    color_profile::{SrgbCheck, convert_background_color, convert_to_srgb, inherit_color_profile},
     compute_output_size,
     image_config::compute_output_size_sharpen,
     read::{
@@ -61,7 +61,7 @@ fn fetch_magic_wand_inner(
 ) -> Result<(MagickWand, bool), MagickError> {
     start_call_once();
 
-    let mw = read_image_wand(input, false, config.keep_frames())?;
+    let mw = read_image_wand(input, false, config.keep_frames(), 0)?;
 
     fetch_magic_wand_from_read(mw, input, config, format)
 }
@@ -159,19 +159,26 @@ fn prepare_frames(
         mw.set_image_property(APNG_PROPERTY, "")?;
     }
 
+    let input_format = mw.get_image_format()?;
+
+    // Animation frames share one canvas and one color profile, while document pages and icon images have their own.
+    let animation = matches!(input_format.as_str(), "GIF" | "WEBP" | "PNG" | "APNG" | "MNG")
+        && mw.get_image_artifact(ICON_ARTIFACT).is_err();
+
     // Color profiles must be applied before compositing, and before formats which cannot keep them.
     if config.strip_metadata() || matches!(format, Some("ICO" | "PGM" | "GRAY")) {
         let mut check = SrgbCheck::default();
+        let mut shared = animation.then_some(None);
 
-        for_each_frame(mw, |frame| convert_to_srgb(frame, &mut check))?;
+        for_each_frame(mw, |frame| convert_to_srgb(frame, &mut check, shared.as_mut()))?;
+    } else if animation && format == Some("TIFF") {
+        let mut shared = None;
+
+        for_each_frame(mw, |frame| inherit_color_profile(frame, &mut shared))?;
     }
 
-    let input_format = mw.get_image_format()?;
-
     // Document pages and icon images have separate sizes and must not share a canvas.
-    if !matches!(input_format.as_str(), "GIF" | "WEBP" | "PNG" | "APNG" | "MNG")
-        || mw.get_image_artifact(ICON_ARTIFACT).is_ok()
-    {
+    if !animation {
         return Ok(false);
     }
 

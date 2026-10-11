@@ -89,7 +89,25 @@ fn identify_inner(mw: &MagickWand) -> Result<ImageIdentify, MagickError> {
 pub fn identify_ping(input: &ImageResource) -> Result<ImageIdentify, MagickError> {
     start_call_once();
 
-    identify_inner(&read_image_wand(input, true, false)?)
+    identify_inner(&read_image_wand(input, true, false, 0)?)
+}
+
+/// Ping and identify an image like `identify_ping`, with a frame limit on supported ImageMagick versions. `0` means no limit.
+///
+/// A ping does not decode the pixels, but ImageMagick still creates every frame, so a small file with many tiny frames can use a lot of memory before its frame count is checked.
+/// On ImageMagick 7.1.2-28 or later, path and data inputs return at most `max_frames` frames when the limit is not `0`, and older versions read every frame.
+/// Pass one more than the largest frame count you accept to find images with too many frames.
+///
+/// The readers of formats such as GIF, TIFF, ICO and HEIC stop after `max_frames` frames, while the WebP and JPEG XL readers still read every frame before the extra ones are dropped.
+/// A `MagickWand` input is not limited, because its frames have been read already.
+/// A path with a frame range or geometry suffix returns an error when `max_frames` is not `0`, because the suffix would override the limit.
+pub fn identify_ping_frames(
+    input: &ImageResource,
+    max_frames: usize,
+) -> Result<ImageIdentify, MagickError> {
+    start_call_once();
+
+    identify_inner(&read_image_wand(input, true, false, max_frames)?)
 }
 
 /// Read and identify an image. It can read an image as `MagickWand` instances.
@@ -99,7 +117,7 @@ pub fn identify_read(
 ) -> Result<ImageIdentify, MagickError> {
     start_call_once();
 
-    let mw = read_image_wand(input, false, true)?;
+    let mw = read_image_wand(input, false, true, 0)?;
 
     let identify = identify_inner(&mw)?;
 

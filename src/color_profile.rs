@@ -8,7 +8,7 @@ use crate::functions::read_image_profile;
 const SRGB_PROFILE: &[u8] = include_bytes!("srgb.icc");
 
 // Browsers ignore a broken profile, or one made for other color channels, so the pixels keep their values here too.
-fn is_usable_profile(mw: &MagickWand, profile: &[u8]) -> bool {
+pub(crate) fn is_usable_profile(mw: &MagickWand, profile: &[u8]) -> bool {
     // The header holds the profile size at 0, the device class at 12, the color space at 16 and the `acsp` signature at 36.
     let Some(header) = profile.get(..128) else {
         return false;
@@ -137,34 +137,30 @@ pub(crate) struct SrgbCheck {
 }
 
 impl SrgbCheck {
-    // Return the profile of the current frame if its colors have to be converted.
-    fn profile_to_convert(&mut self, mw: &MagickWand) -> Result<Option<Vec<u8>>, MagickError> {
-        let Some(profile) = read_image_profile(mw, "ICC")? else {
-            return Ok(None);
-        };
-
-        if profile == SRGB_PROFILE || !is_usable_profile(mw, &profile) {
-            return Ok(None);
+    // Return whether the colors of the current frame have to be converted from the profile.
+    fn needs_conversion(&mut self, mw: &MagickWand, profile: &[u8]) -> Result<bool, MagickError> {
+        if profile == SRGB_PROFILE || !is_usable_profile(mw, profile) {
+            return Ok(false);
         }
 
         let rendering_intent = mw.get_image_rendering_intent();
 
         let srgb = match &self.last {
             Some((last, last_intent, srgb))
-                if *last == profile && *last_intent == rendering_intent =>
+                if last.as_slice() == profile && *last_intent == rendering_intent =>
             {
                 *srgb
             },
             _ => {
-                let srgb = is_srgb_profile(&profile, rendering_intent)?;
+                let srgb = is_srgb_profile(profile, rendering_intent)?;
 
-                self.last = Some((profile.clone(), rendering_intent, srgb));
+                self.last = Some((profile.to_vec(), rendering_intent, srgb));
 
                 srgb
             },
         };
 
-        Ok(if srgb { None } else { Some(profile) })
+        Ok(!srgb)
     }
 }
 
@@ -180,11 +176,53 @@ fn apply_icc_profile(mw: &mut MagickWand, profile: &[u8]) -> Result<(), MagickEr
     Ok(())
 }
 
+// Keep the animation's shared color profile on each TIFF page without changing its pixels.
+pub(crate) fn inherit_color_profile(
+    mw: &mut MagickWand,
+    shared: &mut Option<Vec<u8>>,
+) -> Result<(), MagickError> {
+    if let Some(profile) = read_image_profile(mw, "ICC")? {
+        *shared = Some(profile);
+    } else if let Some(profile) = shared.as_deref() {
+        if is_usable_profile(mw, profile) {
+            mw.profile_image("icc", profile)?;
+        }
+    }
+
+    Ok(())
+}
+
+// For an animation, `shared` holds the profile of the frame before, because ImageMagick attaches a profile which the frames share to one frame only.
 pub(crate) fn convert_to_srgb(
     mw: &mut MagickWand,
     check: &mut SrgbCheck,
+    shared: Option<&mut Option<Vec<u8>>>,
 ) -> Result<(), MagickError> {
-    if check.profile_to_convert(mw)?.is_some() {
+    let own = read_image_profile(mw, "ICC")?;
+    let inherited = own.is_none();
+
+    // A frame without a profile uses the one of the frame before it.
+    let profile = match shared {
+        Some(shared) => {
+            if own.is_some() {
+                *shared = own;
+            }
+
+            shared.as_deref()
+        },
+        None => own.as_deref(),
+    };
+
+    let Some(profile) = profile else {
+        return Ok(());
+    };
+
+    if check.needs_conversion(mw, profile)? {
+        if inherited {
+            // The frame has no profile, so ImageMagick only attaches this one.
+            apply_icc_profile(mw, profile)?;
+        }
+
         apply_icc_profile(mw, SRGB_PROFILE)?;
 
         // Palette depths describe indices, so use 8-bit channels to keep the converted colors.
@@ -201,9 +239,13 @@ pub(crate) fn convert_background_color(
     color: &PixelWand,
     check: &mut SrgbCheck,
 ) -> Result<Option<PixelWand>, MagickError> {
-    let Some(profile) = check.profile_to_convert(mw)? else {
+    let Some(profile) = read_image_profile(mw, "ICC")? else {
         return Ok(None);
     };
+
+    if !check.needs_conversion(mw, &profile)? {
+        return Ok(None);
+    }
 
     let mut background = MagickWand::new();
     background.new_image(1, 1, color)?;

@@ -2,7 +2,7 @@ use std::{fs, path::Path};
 
 use image_convert::{
     Crop, GIFConfig, ICOConfig, ImageResource, JPGConfig, PNGConfig, TIFFConfig, WEBPConfig,
-    identify_ping, identify_read,
+    identify_ping, identify_ping_frames, identify_read,
     magick_rust::{DisposeType, MagickWand, PixelWand},
     start_call_once, to_gif, to_ico, to_jpg, to_png, to_tiff, to_webp,
 };
@@ -31,6 +31,48 @@ fn get_identify() {
     assert_eq!("GIF", id.format);
     assert_eq!(4, id.number_of_frames);
     assert!(!id.has_unreadable_frames);
+}
+
+#[test]
+fn identify_ping_frames_stops_at_the_frame_limit() {
+    // Reading a frame range needs ImageMagick 7.1.2-28 or later.
+    // SAFETY: ImageMagick returns a static C string and accepts a null version pointer.
+    let version = unsafe {
+        std::ffi::CStr::from_ptr(image_convert::magick_rust::bindings::MagickGetVersion(
+            std::ptr::null_mut(),
+        ))
+    };
+    let version: Vec<u32> = version
+        .to_str()
+        .unwrap()
+        .split_whitespace()
+        .nth(1)
+        .unwrap()
+        .split(['.', '-'])
+        .map(|part| part.parse().unwrap())
+        .collect();
+    let expected = if version.as_slice() >= [7, 1, 2, 28].as_slice() { 2 } else { 4 };
+    let gif = ImageResource::from_path(INPUT_IMAGE_PATH);
+    let mut webp = ImageResource::Data(Vec::new());
+    to_webp(&mut webp, &gif, &WEBPConfig::new()).unwrap();
+
+    for input in [&gif, &webp] {
+        let id = identify_ping_frames(input, 2).unwrap();
+        assert_eq!(expected, id.number_of_frames);
+        assert_eq!(100, id.resolution.width);
+        assert_eq!(4, identify_ping_frames(input, 0).unwrap().number_of_frames);
+    }
+}
+
+#[test]
+fn identify_ping_frames_rejects_path_selections_with_a_frame_limit() {
+    for selection in ["0-3", "3,2,1", "100x60"] {
+        let input = ImageResource::Path(format!("{INPUT_IMAGE_PATH}[{selection}]"));
+        let error = identify_ping_frames(&input, 2).unwrap_err();
+        assert_eq!("A frame limit cannot be combined with a path selection.", error.0);
+    }
+    let input = ImageResource::Path(format!("{INPUT_IMAGE_PATH}[0-3]"));
+    assert_eq!(4, identify_ping_frames(&input, 0).unwrap().number_of_frames);
 }
 
 #[test]

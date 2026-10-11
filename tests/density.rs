@@ -348,9 +348,14 @@ fn restored_webp_exif_preserves_orientation_for_conversion() {
     identify_read(&mut decoded, &webp).unwrap();
     let decoded = decoded.unwrap();
     decoded.reset_iterator();
+    let mut profiled = Vec::new();
     while decoded.next_image() {
         assert_eq!(OrientationType::RightTop, decoded.get_image_orientation());
+        let frame = MagickWand::new_from_image(&decoded.get_image().unwrap()).unwrap();
+        profiled.push(frame.write_image_blob("EXIF").is_ok());
     }
+    // Every frame gets the orientation, while the EXIF profile stays on the first frame.
+    assert_eq!(vec![true, false], profiled);
     let mut png = ImageResource::Data(Vec::new());
     to_png(&mut png, &webp, &PNGConfig {
         ppi: Some(PPI),

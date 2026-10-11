@@ -2,11 +2,35 @@ use std::io::{Read, Seek, SeekFrom};
 
 use magick_rust::{MagickError, MagickWand, OrientationType, ResolutionType};
 
-use crate::functions::read_image_profile;
+use crate::{
+    color_profile::is_usable_profile,
+    functions::{for_each_frame, read_image_profile},
+};
 
-// ImageMagick's WebP ping and animated decoder omit container EXIF. Read it without decoding pixels.
-// Like ImageMagick's WebP decoder, ignore invalid data instead of failing to read the image.
-pub(crate) fn read_webp_exif(mut reader: impl Read + Seek) -> Option<Vec<u8>> {
+// The profiles which a WebP container stores for all of its frames.
+#[derive(Default)]
+pub(crate) struct WebpProfiles {
+    icc:  Option<Vec<u8>>,
+    exif: Option<Vec<u8>>,
+}
+
+// ImageMagick's WebP ping and animated decoder omit container profiles. Read them without decoding pixels.
+// The ICC profile is read only if `icc` is `true`.
+pub(crate) fn read_webp_profiles(mut reader: impl Read + Seek, icc: bool) -> WebpProfiles {
+    let mut profiles = WebpProfiles::default();
+
+    // Like ImageMagick's WebP decoder, ignore invalid data instead of failing to read the image.
+    let _ = read_webp_chunks(&mut reader, icc, &mut profiles);
+
+    profiles
+}
+
+// Store the profiles found before any invalid data.
+fn read_webp_chunks(
+    reader: &mut (impl Read + Seek),
+    icc: bool,
+    profiles: &mut WebpProfiles,
+) -> Option<()> {
     let size = reader.seek(SeekFrom::End(0)).ok()?;
     reader.seek(SeekFrom::Start(0)).ok()?;
     let mut header = [0; 12];
@@ -14,73 +38,168 @@ pub(crate) fn read_webp_exif(mut reader: impl Read + Seek) -> Option<Vec<u8>> {
     if &header[..4] != b"RIFF" || &header[8..] != b"WEBP" {
         return None;
     }
-    let end = u64::from(u32::from_le_bytes(header[4..8].try_into().unwrap())) + 8;
+    let mut end = u64::from(u32::from_le_bytes(header[4..8].try_into().unwrap())) + 8;
+    // Like ImageMagick, accept a RIFF size which is 12 or 20 bytes larger than the data, because some writers store it that way.
+    if end > size && matches!(end - size, 12 | 20) {
+        end = size;
+    }
     if end < 12 || end > size {
         return None;
     }
-    // Only the extended format starts with VP8X, and ImageMagick reads EXIF only when its flags have the EXIF bit.
+    // Only the extended format starts with VP8X, and ImageMagick reads a profile only when the flags have its bit.
     let mut extended = [0; 9];
     reader.read_exact(&mut extended).ok()?;
-    if &extended[..4] != b"VP8X" || extended[8] & 0x08 == 0 {
+    if &extended[..4] != b"VP8X" {
         return None;
     }
+    let mut icc = icc && extended[8] & 0x20 != 0;
+    let mut exif = extended[8] & 0x08 != 0;
+    // `GetMaxProfileSize` was added in ImageMagick 7.1.1-31, so the documentation lists that version as the minimum one.
+    // SAFETY: ImageMagick is initialized before reading an image, and this function takes no pointers.
+    let max_profile_size = unsafe { magick_rust::bindings::GetMaxProfileSize() };
     let mut offset = 12;
-    while offset < end {
-        reader.seek(SeekFrom::Start(offset)).ok()?;
+    // The RIFF header and the start of the VP8X chunk have been read.
+    let mut position = 21;
+    while (icc || exif) && offset < end {
+        // Unlike `seek`, `seek_relative` keeps the buffer of a `BufReader`, so skipping small chunks does not read the file again.
+        reader.seek_relative(offset as i64 - position as i64).ok()?;
         let mut chunk = [0; 8];
         reader.read_exact(&mut chunk).ok()?;
+        position = offset + 8;
         let length = u32::from_le_bytes(chunk[4..].try_into().unwrap());
-        offset += 8 + u64::from(length) + u64::from(length % 2);
+        offset = position + u64::from(length) + u64::from(length % 2);
         if offset > end {
             return None;
         }
-        if &chunk[..4] == b"EXIF" {
-            let mut profile = Vec::new();
-            profile.try_reserve_exact(length as usize).ok()?;
-            reader.take(u64::from(length)).read_to_end(&mut profile).ok()?;
-            return Some(profile);
+        // Use the first chunk of each profile.
+        let profile = match &chunk[..4] {
+            b"ICCP" if icc => {
+                icc = false;
+                &mut profiles.icc
+            },
+            b"EXIF" if exif => {
+                exif = false;
+                &mut profiles.exif
+            },
+            _ => continue,
+        };
+        // Skip profiles over ImageMagick's policy limit before allocating or reading their data.
+        if length as usize > max_profile_size {
+            continue;
         }
+        let mut data = Vec::new();
+        data.try_reserve_exact(length as usize).ok()?;
+        reader.by_ref().take(u64::from(length)).read_to_end(&mut data).ok()?;
+        position += data.len() as u64;
+        *profile = Some(data);
     }
-    None
+    Some(())
 }
 
-pub(crate) fn restore_exif_properties(mw: &mut MagickWand) -> Result<(), MagickError> {
-    // Attaching a profile does not initialize the attributes which the normal decoder sets.
-    let orientation = match mw.get_image_property("exif:Orientation").ok().as_deref() {
-        Some("1") => Some(OrientationType::TopLeft),
-        Some("2") => Some(OrientationType::TopRight),
-        Some("3") => Some(OrientationType::BottomRight),
-        Some("4") => Some(OrientationType::BottomLeft),
-        Some("5") => Some(OrientationType::LeftTop),
-        Some("6") => Some(OrientationType::RightTop),
-        Some("7") => Some(OrientationType::RightBottom),
-        Some("8") => Some(OrientationType::LeftBottom),
-        _ => None,
-    };
-    if let Some(orientation) = orientation {
-        mw.set_image_orientation(orientation)?;
-    }
-    let units = match mw.get_image_property("exif:ResolutionUnit").ok().as_deref() {
-        Some("1") => Some(ResolutionType::Undefined),
-        Some("2") => Some(ResolutionType::PixelsPerInch),
-        Some("3") => Some(ResolutionType::PixelsPerCentimeter),
-        _ => None,
-    };
-    let resolution = |key| {
-        let value = mw.get_image_property(key).ok()?;
-        let (numerator, denominator) = value.split_once('/').unwrap_or((&value, "1"));
-        let value =
-            numerator.trim().parse::<f64>().ok()? / denominator.trim().parse::<f64>().ok()?;
-        (value.is_finite() && value >= 0.0).then_some(value)
-    };
-    if let (Some(x), Some(y)) = (resolution("exif:XResolution"), resolution("exif:YResolution")) {
-        mw.set_image_resolution(x, y)?;
-        // Like ImageMagick, keep the current units when EXIF has none.
-        if let Some(units) = units {
-            mw.set_image_units(units)?;
+// Attach the container profiles to the first frame only, because they belong to the whole image and copying them to every frame would multiply their memory use.
+// Conversions use the color profile of the first frame for the frames without one, and `all_frames` gives every frame the orientation and density from EXIF.
+pub(crate) fn restore_webp_profiles(
+    mw: &mut MagickWand,
+    profiles: WebpProfiles,
+    all_frames: bool,
+) -> Result<(), MagickError> {
+    mw.reset_iterator();
+
+    if let Some(icc) = profiles.icc {
+        // A still image decoded with webpmux has its profiles already, and attaching an ICC profile again could convert its colors.
+        // ImageMagick converts the colors with a device link profile instead of attaching it, so only usable profiles are attached.
+        if read_image_profile(mw, "ICC")?.is_none() && is_usable_profile(mw, &icc) {
+            attach_profile(mw, "icc", &icc)?;
         }
     }
-    Ok(())
+
+    let Some(exif) = profiles.exif else {
+        return Ok(());
+    };
+
+    if read_image_profile(mw, "EXIF")?.is_some() || !attach_profile(mw, "exif", &exif)? {
+        return Ok(());
+    }
+
+    let attributes = ExifAttributes::read(mw);
+
+    if all_frames {
+        for_each_frame(mw, |frame| attributes.apply(frame))
+    } else {
+        attributes.apply(mw)
+    }
+}
+
+// Like ImageMagick's decoders, skip a profile which cannot be attached, such as one over the profile size limit of the policy.
+fn attach_profile(mw: &mut MagickWand, name: &str, profile: &[u8]) -> Result<bool, MagickError> {
+    if mw.profile_image(name, profile).is_ok() {
+        return Ok(true);
+    }
+
+    mw.clear_exception()?;
+
+    Ok(false)
+}
+
+// The attributes which ImageMagick's decoders set from EXIF.
+struct ExifAttributes {
+    orientation: Option<OrientationType>,
+    resolution:  Option<(f64, f64)>,
+    units:       Option<ResolutionType>,
+}
+
+impl ExifAttributes {
+    // Attaching a profile does not initialize the attributes which the normal decoder sets, so read them from the EXIF properties of the current frame.
+    fn read(mw: &MagickWand) -> Self {
+        let orientation = match mw.get_image_property("exif:Orientation").ok().as_deref() {
+            Some("1") => Some(OrientationType::TopLeft),
+            Some("2") => Some(OrientationType::TopRight),
+            Some("3") => Some(OrientationType::BottomRight),
+            Some("4") => Some(OrientationType::BottomLeft),
+            Some("5") => Some(OrientationType::LeftTop),
+            Some("6") => Some(OrientationType::RightTop),
+            Some("7") => Some(OrientationType::RightBottom),
+            Some("8") => Some(OrientationType::LeftBottom),
+            _ => None,
+        };
+        let units = match mw.get_image_property("exif:ResolutionUnit").ok().as_deref() {
+            Some("1") => Some(ResolutionType::Undefined),
+            Some("2") => Some(ResolutionType::PixelsPerInch),
+            Some("3") => Some(ResolutionType::PixelsPerCentimeter),
+            _ => None,
+        };
+        let resolution = |key| {
+            let value = mw.get_image_property(key).ok()?;
+            let (numerator, denominator) = value.split_once('/').unwrap_or((&value, "1"));
+            let value =
+                numerator.trim().parse::<f64>().ok()? / denominator.trim().parse::<f64>().ok()?;
+            (value.is_finite() && value >= 0.0).then_some(value)
+        };
+        let resolution = match (resolution("exif:XResolution"), resolution("exif:YResolution")) {
+            (Some(x), Some(y)) => Some((x, y)),
+            _ => None,
+        };
+
+        Self {
+            orientation,
+            resolution,
+            units,
+        }
+    }
+
+    fn apply(&self, mw: &mut MagickWand) -> Result<(), MagickError> {
+        if let Some(orientation) = self.orientation {
+            mw.set_image_orientation(orientation)?;
+        }
+        if let Some((x, y)) = self.resolution {
+            mw.set_image_resolution(x, y)?;
+            // Like ImageMagick, keep the current units when EXIF has none.
+            if let Some(units) = self.units {
+                mw.set_image_units(units)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy)]

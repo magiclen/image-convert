@@ -70,6 +70,20 @@ pub async fn identify_ping(input: ImageResource) -> Result<ImageIdentify, Magick
     spawn_blocking(move || crate::identify_ping(&input)).await.map_err(handle_join_error)?
 }
 
+/// Ping and identify an image like `identify_ping`, with a frame limit on supported ImageMagick versions. `0` means no limit.
+///
+/// The limit needs ImageMagick 7.1.2-28 or later and does not apply to `MagickWand` inputs; older versions read every frame.
+/// Paths with a frame range or geometry suffix return an error when `max_frames` is not `0`.
+/// See [`crate::identify_ping_frames`] for the limits of each format.
+pub async fn identify_ping_frames(
+    input: ImageResource,
+    max_frames: usize,
+) -> Result<ImageIdentify, MagickError> {
+    spawn_blocking(move || crate::identify_ping_frames(&input, max_frames))
+        .await
+        .map_err(handle_join_error)?
+}
+
 /// Read and identify an image. It also gives back the `MagickWand` instance which holds the image.
 pub async fn identify_read(
     input: ImageResource,

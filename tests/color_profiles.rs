@@ -393,3 +393,80 @@ fn tiff_applies_each_profile_and_strips_page_labels() {
         }
     }
 }
+
+#[test]
+fn animation_frames_without_a_profile_use_the_previous_one() {
+    let colors = [SOURCE_PIXEL, [60, 140, 200, 255]];
+    // A still image of each color gives its converted color.
+    let expected = colors.map(|color| {
+        let mut output = ImageResource::Data(Vec::new());
+        let input = ImageResource::MagickWand(profiled_image(DISPLAY_P3, color));
+        to_png(&mut output, &input, &PNGConfig::new()).unwrap();
+        pixel(&read_image(&output))
+    });
+
+    for format in ["WEBP", "GIF"] {
+        // Only the first frame has the profile, like an animated WebP image which ImageMagick reads or a GIF image which stores its profile once.
+        let mut source = MagickWand::new();
+        for (index, color) in colors.into_iter().enumerate() {
+            let mut frame = profiled_image(DISPLAY_P3, color);
+            if index > 0 {
+                frame.profile_image("icc", None::<&[u8]>).unwrap();
+                // A frame can have EXIF without its own color profile.
+                frame
+                    .profile_image("exif", b"Exif\0\0II*\0\x08\0\0\0\0\0\0\0\0\0".as_slice())
+                    .unwrap();
+            }
+            frame.set_image_format(format).unwrap();
+            frame.set_image_delay(10).unwrap();
+            source.add_image(&frame).unwrap();
+        }
+        let source = ImageResource::MagickWand(source);
+
+        let mut tagged = ImageResource::Data(Vec::new());
+        if format == "WEBP" {
+            to_webp(&mut tagged, &source, &WEBPConfig {
+                strip_metadata: false,
+                quality: 100,
+                ..WEBPConfig::new()
+            })
+            .unwrap();
+        } else {
+            to_gif(&mut tagged, &source, &GIFConfig {
+                strip_metadata: false,
+                ..GIFConfig::new()
+            })
+            .unwrap();
+        }
+        let decoded = read_image(&tagged);
+        decoded.reset_iterator();
+        let mut profiled = Vec::new();
+        while decoded.next_image() {
+            profiled.push(icc_profile(&decoded).is_ok());
+        }
+        assert_eq!(vec![true, false], profiled, "{format}");
+
+        for input in [&source, &tagged] {
+            for strip_metadata in [false, true] {
+                let mut output = ImageResource::Data(Vec::new());
+                to_tiff(&mut output, input, &TIFFConfig {
+                    strip_metadata,
+                    ..TIFFConfig::new()
+                })
+                .unwrap();
+                let output = read_image(&output);
+                assert_eq!(2, output.get_number_images(), "{format}");
+                output.reset_iterator();
+                for expected in if strip_metadata { expected } else { colors } {
+                    assert!(output.next_image());
+                    assert_pixel(expected, pixel(&output), 2);
+                    if strip_metadata {
+                        assert!(icc_profile(&output).is_err());
+                    } else {
+                        assert_eq!(DISPLAY_P3, icc_profile(&output).unwrap());
+                    }
+                }
+            }
+        }
+    }
+}
